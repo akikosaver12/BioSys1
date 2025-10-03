@@ -1070,53 +1070,53 @@ router.post("/crear-preferencia-pago", verifyToken, async (req, res) => {
     const preferenceClient = new Preference(mercadopagoClient);
 
     // Determinar si usar URLs completas basado en el entorno
-    const usarURLsCompletas = BACKEND_URL.includes('https://biosysvet.site');
+const usarURLsCompletas = BACKEND_URL.startsWith('https://');
+    const body = {
+      items: items.map(item => ({
+        id: item.id || String(Math.random()),
+        title: String(item.title).substring(0, 256),
+        unit_price: Number(item.unit_price),
+        quantity: Number(item.quantity),
+        currency_id: "COP",
+        description: item.description ? String(item.description).substring(0, 256) : undefined
+      })),
+      payer: {
+        name: payer?.name || req.user.name || "Usuario",
+        email: payer?.email || req.user.email || "test@test.com",
+        phone: {
+          area_code: "57",
+          number: String(payer?.phone || "3001234567").replace(/\D/g, '').substring(0, 15)
+        },
+        address: {
+          street_name: payer?.address?.street_name || "Calle principal",
+          street_number: String(payer?.address?.street_number || 123),
+          zip_code: payer?.address?.zip_code || "110111"
+        }
+      },
+      statement_descriptor: "CLINICA VET",
+      external_reference: String(req.user.id),
+      metadata: {
+        user_id: String(req.user.id),
+        user_email: String(req.user.email),
+        order_date: new Date().toISOString()
+      }
+    };
 
-const body = {
-  items: items.map(item => ({
-    id: item.id || String(Math.random()),
-    title: String(item.title).substring(0, 256),
-    unit_price: Number(item.unit_price),
-    quantity: Number(item.quantity),
-    currency_id: "COP",
-    description: item.description ? String(item.description).substring(0, 256) : undefined
-  })),
-  payer: {
-    name: payer?.name || req.user.name || "Usuario",
-    email: payer?.email || req.user.email || "test@test.com",
-    phone: {
-      area_code: "57",
-      number: String(payer?.phone || "3001234567").replace(/\D/g, '').substring(0, 15)
-    },
-    address: {
-      street_name: payer?.address?.street_name || "Calle principal",
-      street_number: String(payer?.address?.street_number || 123),
-      zip_code: payer?.address?.zip_code || "110111"
+    // Solo agregar back_urls si NO estamos en localhost
+    if (usarURLsCompletas) {
+      body.back_urls = {
+        success: `${FRONTEND_URL}/pago-exitoso`,
+        failure: `${FRONTEND_URL}/pago-fallido`,
+        pending: `${FRONTEND_URL}/pago-pendiente`
+      };
+      body.auto_return = "approved";
+      body.notification_url = `${BACKEND_URL}/api/webhook-mercadopago`;
+      
+      console.log('✅ Usando URLs de retorno (producción/ngrok)');
+    } else {
+      console.log('⚠️ Modo localhost - sin URLs de retorno');
+      console.log('📌 Después del pago, cierra manualmente la ventana de Mercado Pago');
     }
-  },
-  statement_descriptor: "CLINICA VET",
-  external_reference: String(req.user.id),
-  metadata: {
-    user_id: String(req.user.id),
-    user_email: String(req.user.email),
-    order_date: new Date().toISOString()
-  }
-};
-// Solo agregar back_urls si NO estamos en localhost
-if (usarURLsCompletas) {
-  body.back_urls = {
-    success: `${FRONTEND_URL}/pago-exitoso`,
-    failure: `${FRONTEND_URL}/pago-fallido`,
-    pending: `${FRONTEND_URL}/pago-pendiente`
-  };
-  body.auto_return = "approved";
-  body.notification_url = `${BACKEND_URL}/api/webhook-mercadopago`;
-  
-  console.log('✅ Usando URLs de retorno (producción/ngrok)');
-} else {
-  console.log('⚠️ Modo localhost - sin URLs de retorno');
-  console.log('📌 Después del pago, cierra manualmente la ventana de Mercado Pago');
-}
 
     console.log('🔄 Creando preferencia en Mercado Pago...');
 
