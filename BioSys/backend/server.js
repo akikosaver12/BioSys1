@@ -27,11 +27,19 @@ const router = express.Router();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key";
 
-// 💳 CONFIGURAR MERCADO PAGO - ACTUALIZADO
+// 💳 CONFIGURAR MERCADO PAGO - PRODUCCIÓN
+console.log('🔍 MP_ACCESS_TOKEN configurado:', !!process.env.MP_ACCESS_TOKEN);
+console.log('🔍 Primeros caracteres del token:', process.env.MP_ACCESS_TOKEN?.substring(0, 15));
+
 const mercadopagoClient = new MercadoPagoConfig({ 
-  accessToken: process.env.MP_ACCESS_TOKEN || 'TEST-1416374587065954-093007-3597b4ec01a3af6a2729540b795619e9-821996470',
+  accessToken: process.env.MP_ACCESS_TOKEN,
   options: { timeout: 5000 }
 });
+
+if (!process.env.MP_ACCESS_TOKEN) {
+  console.error('❌ ERROR: MP_ACCESS_TOKEN no está configurado en las variables de entorno');
+  console.error('❌ Mercado Pago NO funcionará correctamente');
+}
 
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "503963971592-17vo21di0tjf249341l4ocscemath5p0.apps.googleusercontent.com";
