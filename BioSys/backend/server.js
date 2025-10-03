@@ -1048,12 +1048,7 @@ const verifyGoogleToken = async (token) => {
   }
 };
 
-/* ======================
-   💳 RUTAS DE MERCADO PAGO - NUEVAS
-   ====================== */
 
-// Crear preferencia de pago
-// Crear preferencia de pago
 /* ======================
    💳 RUTAS DE MERCADO PAGO
    ====================== */
@@ -1075,7 +1070,7 @@ router.post("/crear-preferencia-pago", verifyToken, async (req, res) => {
     const preferenceClient = new Preference(mercadopagoClient);
 
     // Determinar si usar URLs completas basado en el entorno
-    const usarURLsCompletas = BACKEND_URL.includes('https://');
+    const usarURLsCompletas = BACKEND_URL.includes('https://biosysvet.site');
 
     const body = {
       items: items.map(item => ({
