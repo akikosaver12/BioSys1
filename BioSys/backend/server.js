@@ -45,8 +45,8 @@ if (!process.env.MP_ACCESS_TOKEN) {
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "503963971592-17vo21di0tjf249341l4ocscemath5p0.apps.googleusercontent.com";
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://biosysvet.site';
-const BACKEND_URL = process.env.BACKEND_URL || 'https://biosys1.onrender.com/api';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
 
 // 📧 RATE LIMITING PARA EMAILS
 const emailRateLimit = new Map();
@@ -3320,7 +3320,7 @@ router.get("/admin/citas/estadisticas", verifyToken, isAdmin, async (req, res) =
 });
 
 /* ======================
-   🩺 RUTAS DE SALUD
+   📧 Salud - ACTUALIZADA
    ====================== */
 router.get("/health", (req, res) => {
   console.log('🩺 Health check solicitado');
@@ -3349,22 +3349,6 @@ router.get("/health", (req, res) => {
    Montar rutas
    ====================== */
 app.use("/api", router);
-
-// 🆕 NUEVO: Servir archivos estáticos del frontend (si están en build)
-// Servir archivos estáticos desde la carpeta build del frontend
-app.use(express.static(path.join(__dirname, '../frontend/build')));
-
-// 🆕 NUEVO: Catch-all handler para React Router
-// Esto debe ir DESPUÉS de las rutas de API
-app.get('/*', (req, res) => {
-  // No aplicar el catch-all a rutas de API
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: 'API endpoint not found' });
-  }
-  
-  // Para todas las otras rutas, servir index.html
-  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
-});
 
 /* ======================
    Manejo de errores global
