@@ -3351,14 +3351,12 @@ router.get("/health", (req, res) => {
 app.use("/api", router);
 
 // 🆕 NUEVO: Servir archivos estáticos del frontend (si están en build)
-// NOTA: 'path' ya está declarado al inicio del archivo, no es necesario volver a declararlo
-
 // Servir archivos estáticos desde la carpeta build del frontend
 app.use(express.static(path.join(__dirname, '../frontend/build')));
 
 // 🆕 NUEVO: Catch-all handler para React Router
 // Esto debe ir DESPUÉS de las rutas de API
-app.get('*', (req, res) => {
+app.get('/*', (req, res) => {
   // No aplicar el catch-all a rutas de API
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'API endpoint not found' });
