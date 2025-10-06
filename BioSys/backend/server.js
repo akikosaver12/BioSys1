@@ -3351,7 +3351,7 @@ router.get("/health", (req, res) => {
 app.use("/api", router);
 
 // 🆕 NUEVO: Servir archivos estáticos del frontend (si están en build)
-const path = require('path');
+// NOTA: 'path' ya está declarado al inicio del archivo, no es necesario volver a declararlo
 
 // Servir archivos estáticos desde la carpeta build del frontend
 app.use(express.static(path.join(__dirname, '../frontend/build')));
