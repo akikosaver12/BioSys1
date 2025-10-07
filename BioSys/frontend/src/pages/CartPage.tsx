@@ -2,16 +2,20 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
+
 const CartPage: React.FC = () => {
   const { state: cartState, dispatch } = useCart();
   const [procesandoPago, setProcesandoPago] = useState(false);
   const [error, setError] = useState('');
 
   const updateQuantity = (id: string, quantity: number) => {
+    if (!id || quantity < 1) return;
     dispatch({ type: 'UPDATE_QUANTITY', payload: { id, quantity } });
   };
 
   const removeFromCart = (id: string) => {
+    if (!id) return;
     dispatch({ type: 'REMOVE_FROM_CART', payload: id });
   };
 
@@ -45,8 +49,16 @@ const CartPage: React.FC = () => {
   };
 
  const procesarPago = async () => {
-  if (cartState.items.length === 0) {
+  // Validaciones iniciales
+  if (!cartState.items || cartState.items.length === 0) {
     setError('El carrito está vacío');
+    return;
+  }
+
+  // Validar que todos los items tienen ID
+  const itemsValidos = cartState.items.filter(item => item && item.id && item.name && item.price);
+  if (itemsValidos.length === 0) {
+    setError('No hay productos válidos en el carrito');
     return;
   }
 
@@ -66,9 +78,8 @@ const CartPage: React.FC = () => {
       return;
     }
 
-    // ... resto del código
-
-    const items = cartState.items.map(item => ({
+    // Mapear solo items válidos
+    const items = itemsValidos.map(item => ({
       title: item.name,
       unit_price: item.price,
       quantity: item.quantity,
@@ -95,7 +106,7 @@ const CartPage: React.FC = () => {
     console.log('Payer:', payer);
     console.log('Token presente:', !!token);
 
-    const response = await fetch('http://localhost:5000/api/crear-preferencia-pago', {
+    const response = await fetch(`${API_URL}/crear-preferencia-pago`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -114,7 +125,15 @@ const CartPage: React.FC = () => {
     }
 
     const data = await response.json();
-    window.location.href = data.sandbox_init_point || data.init_point;
+    
+    // Verificar que tenemos una URL válida antes de redirigir
+    const redirectUrl = data.init_point || data.sandbox_init_point;
+    if (!redirectUrl) {
+      throw new Error('No se recibió URL de pago válida del servidor');
+    }
+    
+    console.log('🔗 URL de redirección:', redirectUrl);
+    window.location.href = redirectUrl;
 
   } catch (error) {
     console.error('Error procesando pago:', error);
@@ -254,7 +273,9 @@ const CartPage: React.FC = () => {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           
           <div className="xl:col-span-2 space-y-6">
-            {cartState.items.map(item => (
+            {cartState.items
+              .filter(item => item && item.id) // Filtrar items válidos
+              .map(item => (
               <div key={item.id} className="group bg-white rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 p-6">
                 <div className="flex flex-col sm:flex-row gap-6">
                   

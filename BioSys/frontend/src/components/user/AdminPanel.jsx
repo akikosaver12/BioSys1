@@ -6,7 +6,9 @@ import {
   TrendingUp, Activity, Settings
 } from "lucide-react";
 
-const BASE_URL = "http://localhost:5000";
+// CONSTANTES - Consistente con otros archivos
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
+const BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || "https://biosys1.onrender.com";
 
 const AdminPanel = () => {
   // --- Obtener token robusto ---
@@ -125,7 +127,7 @@ const AdminPanel = () => {
 
     const token = getToken();
     try {
-      const res = await fetch(`${BASE_URL}/api/mascotas/${mascotaId}/vacunas`, {
+      const res = await fetch(`${API_URL}/mascotas/${mascotaId}/vacunas`, {
         method: "POST",
         headers: {
           "Accept": "application/json",
@@ -161,7 +163,7 @@ const AdminPanel = () => {
 
     const token = getToken();
     try {
-      const res = await fetch(`${BASE_URL}/api/mascotas/${mascotaId}/operaciones`, {
+      const res = await fetch(`${API_URL}/mascotas/${mascotaId}/operaciones`, {
         method: "POST",
         headers: {
           "Accept": "application/json",
@@ -188,7 +190,7 @@ const AdminPanel = () => {
   // --- Server Health ---
   const checkServerHealth = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/health`);
+      const response = await fetch(`${API_URL}/health`);
       if (response.ok) {
         setServerStatus("online");
         return true;
@@ -294,8 +296,8 @@ const AdminPanel = () => {
 
       // DETERMINAR SI ES CREAR O EDITAR
       const url = isEditMode 
-        ? `${BASE_URL}/api/productos/${editingProduct._id}`
-        : `${BASE_URL}/api/productos`;
+        ? `${API_URL}/productos/${editingProduct._id}`
+        : `${API_URL}/productos`;
       
       const method = isEditMode ? "PUT" : "POST";
 
@@ -346,11 +348,11 @@ const AdminPanel = () => {
     try {
       const token = getToken();
       if (!token) return setWarn("Debes iniciar sesión como admin.");
-      const me = await fetchJSON(`${BASE_URL}/api/auth/me`, {
+      const me = await fetchJSON(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (me?.role !== "admin") return setWarn("Tu usuario no es admin.");
-      const data = await fetchJSON(`${BASE_URL}/api/usuarios`, {
+      const data = await fetchJSON(`${API_URL}/usuarios`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUsuarios(data);
@@ -364,7 +366,7 @@ const AdminPanel = () => {
     try {
       const token = getToken();
       if (!token) return setWarn("Debes iniciar sesión para ver mascotas.");
-      const data = await fetchJSON(`${BASE_URL}/api/usuarios/${userId}/mascotas`, {
+      const data = await fetchJSON(`${API_URL}/usuarios/${userId}/mascotas`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMascotasUsuario(data.mascotas || []);
@@ -379,7 +381,7 @@ const AdminPanel = () => {
     const isServerOnline = await checkServerHealth();
     if (!isServerOnline) return setProductos([]);
     try {
-      const data = await fetchJSON(`${BASE_URL}/api/productos`);
+      const data = await fetchJSON(`${API_URL}/productos`);
       setProductos(data);
     } catch (error) {
       setWarn(`No se pudieron cargar los productos: ${error.message}`);
@@ -388,7 +390,7 @@ const AdminPanel = () => {
 
   const getCategorias = async () => {
     try {
-      const data = await fetchJSON(`${BASE_URL}/api/productos/categorias/disponibles`);
+      const data = await fetchJSON(`${API_URL}/productos/categorias/disponibles`);
       setCategorias(data);
     } catch (error) {
       console.error("Error cargando categorías:", error);
@@ -414,7 +416,7 @@ const AdminPanel = () => {
     try {
       const token = getToken();
       if (!token) return alert("Debes iniciar sesión como admin.");
-      await fetchJSON(`${BASE_URL}/api/productos/${id}`, {
+      await fetchJSON(`${API_URL}/productos/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -433,11 +435,11 @@ const AdminPanel = () => {
     try {
       const token = getToken();
       if (!token) return setWarn("Debes iniciar sesión como admin.");
-      const me = await fetchJSON(`${BASE_URL}/api/auth/me`, {
+      const me = await fetchJSON(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (me?.role !== "admin") return setWarn("Tu usuario no es admin.");
-      const data = await fetchJSON(`${BASE_URL}/api/citas`, {
+      const data = await fetchJSON(`${API_URL}/citas`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setCitas(data);

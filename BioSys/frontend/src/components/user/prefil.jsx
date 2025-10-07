@@ -27,6 +27,8 @@ interface Mascota {
   estado: string;
 }
 
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
+
 const UserProfile = () => {
   const [userData, setUserData] = useState(null);
   const [mascotas, setMascotas] = useState([]);
@@ -47,7 +49,7 @@ const UserProfile = () => {
   // Función para hacer peticiones autenticadas
   const fetchWithAuth = async (url, options = {}) => {
     const token = localStorage.getItem('token');
-    return fetch(`http://localhost:5000/api${url}`, {
+    return fetch(`${API_URL}${url}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -55,6 +57,7 @@ const UserProfile = () => {
         ...options.headers,
       },
     });
+    
   };
 
   // Cargar datos del usuario

@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+// CONSTANTES - Consistente con otros archivos
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
+
 interface Mascota {
   _id: string;
   nombre: string;
@@ -20,7 +23,7 @@ const MascotaCard = () => {
     const fetchMascotas = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch("http://localhost:5000/api/mascotas", {
+      const res = await fetch(`${API_URL}/mascotas`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

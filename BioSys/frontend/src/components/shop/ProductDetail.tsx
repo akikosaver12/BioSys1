@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Product, BackendProduct } from '../../types/Product';
 import { useCart } from '../../contexts/CartContext';
 
-const BASE_URL = "http://localhost:5000";
+// CONSTANTES - Consistente con otros archivos
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
 
 const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -36,7 +37,7 @@ const ProductDetail: React.FC = () => {
           headers.Authorization = `Bearer ${token}`;
         }
 
-        const response = await fetch(`${BASE_URL}/api/productos/${id}`, {
+        const response = await fetch(`${API_URL}/productos/${id}`, {
           headers,
         });
         

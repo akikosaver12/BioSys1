@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Camera, Upload, X, Check } from "lucide-react";
 
+// CONSTANTES - Consistente con otros archivos
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
+
 interface FormState {
   nombre: string;
   especie: string;
@@ -36,7 +39,7 @@ function EditarMascota() {
     const fetchMascota = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch(`http://localhost:5000/api/mascotas/${idMascota}`, {
+       const res = await fetch(`${API_URL}/mascotas/${idMascota}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
 
@@ -113,7 +116,8 @@ function EditarMascota() {
       });
 
       const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:5000/api/mascotas/${idMascota}`, {
+      const res = await fetch(`${API_URL}/mascotas/${idMascota}`, {
+
         method: "PUT",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: data,

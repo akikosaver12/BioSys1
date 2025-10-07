@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from '@react-oauth/google';
 
+// CONSTANTES - Consistente con otros archivos
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
+
 function Login() {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
@@ -24,7 +27,7 @@ function Login() {
     setShowVerificationMessage(false);
 
     try {
-      const res = await fetch("http://localhost:5000/api/login", {
+      const res = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -69,7 +72,10 @@ function Login() {
   // 👉 Maneja login con Google
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
-      const res = await fetch("http://localhost:5000/api/auth/google", {
+      console.log("📧 Iniciando login con Google...");
+      console.log("🔗 URL de API:", `${API_URL}/auth/google`);
+      
+      const res = await fetch(`${API_URL}/auth/google`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -97,7 +103,14 @@ function Login() {
       }
     } catch (error) {
       console.error("⚠️ Error Google login:", error);
-      alert("⚠️ Error al iniciar sesión con Google");
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        alert("❌ No se pudo conectar con el servidor para el login con Google.");
+      } else if (error.message.includes('Unexpected token')) {
+        alert("❌ El servidor devolvió una respuesta inválida. La ruta puede no existir.");
+      } else {
+        alert("⚠️ Error al iniciar sesión con Google: " + error.message);
+      }
     }
   };
 
@@ -110,7 +123,7 @@ function Login() {
     if (!pendingEmail) return;
 
     try {
-      const res = await fetch("http://localhost:5000/api/resend-verification", {
+      const res = await fetch(`${API_URL}/resend-verification`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

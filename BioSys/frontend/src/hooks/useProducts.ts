@@ -4,7 +4,8 @@ import { Product, BackendProduct } from '../types/Product';
 // Re-exportar Product para mantener compatibilidad
 export type { Product, BackendProduct } from '../types/Product';
 
-const BASE_URL = "http://localhost:5000";
+// CONSTANTES - Consistente con otros archivos
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
 
 interface UseProductsState {
   products: Product[];
@@ -39,7 +40,7 @@ export function useProducts(): UseProductsReturn {
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${BASE_URL}/api/productos`, {
+      const response = await fetch(`${API_URL}/productos`, {
         headers,
       });
 
@@ -84,7 +85,7 @@ export function useProducts(): UseProductsReturn {
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${BASE_URL}/api/productos/${id}`, {
+      const response = await fetch(`${API_URL}/productos/${id}`, {
         headers,
       });
 

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 // CONSTANTES MEJORADAS - Variables de entorno con fallbacks
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || "503963971592-17vo21di0tjf249341l4ocscemath5p0.apps.googleusercontent.com";
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -58,6 +58,7 @@ const Register = () => {
     
     try {
       console.log("📧 Iniciando registro con Google...");
+      console.log("🔗 URL de API:", `${API_URL}/auth/google`);
       
       const res = await fetch(`${API_URL}/auth/google`, {
         method: "POST",
@@ -68,6 +69,26 @@ const Register = () => {
           credential: response.credential
         }),
       });
+
+      console.log("📊 Status de respuesta:", res.status, res.statusText);
+      console.log("📊 Headers de respuesta:", Object.fromEntries(res.headers.entries()));
+
+      // Verificar si la respuesta es JSON válida
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error("❌ La respuesta no es JSON válida. Content-Type:", contentType);
+        
+        // Leer como texto para ver qué está devolviendo el servidor
+        const textResponse = await res.text();
+        console.error("📄 Respuesta como texto:", textResponse.substring(0, 500));
+        
+        if (res.status === 404) {
+          alert("❌ La ruta de autenticación con Google no está disponible en el servidor. Verifica que el backend esté corriendo correctamente.");
+        } else {
+          alert(`❌ Error del servidor (${res.status}). La respuesta no es válida.`);
+        }
+        return;
+      }
 
       const data = await res.json();
       console.log("📥 Respuesta Google OAuth:", {
@@ -107,9 +128,11 @@ const Register = () => {
       console.error("💥 Error en registro con Google:", error);
       
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        alert("❌ No se pudo conectar con el servidor para verificar con Google.");
+        alert("❌ No se pudo conectar con el servidor. Verifica que esté corriendo en " + API_URL.replace('/api', ''));
+      } else if (error.message.includes('Unexpected token')) {
+        alert("❌ El servidor devolvió una respuesta inválida. Puede ser que la ruta no exista o esté mal configurada.");
       } else {
-        alert("❌ Error al conectar con Google. Intenta de nuevo.");
+        alert("❌ Error al conectar con Google: " + error.message);
       }
     } finally {
       setGoogleLoading(false);

@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, Upload, X, Check } from "lucide-react";
 
+// CONSTANTES - Consistente con otros archivos
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
+
 interface FormState {
   nombre: string;
   especie: string;
@@ -79,7 +82,7 @@ const CrearMascota: React.FC = () => {
     const token = localStorage.getItem("token");
 
     try {
-      const res = await fetch("http://localhost:5000/api/mascotas", {
+      const res = await fetch(`${API_URL}/mascotas`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
 

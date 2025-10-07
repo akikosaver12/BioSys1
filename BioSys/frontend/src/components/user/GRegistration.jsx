@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
+// CONSTANTES - Consistente con Register.jsx
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
+
 const CompleteGoogleRegistration = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -128,7 +131,9 @@ const CompleteGoogleRegistration = () => {
 
     try {
       console.log("📤 Enviando datos adicionales al servidor...");
-      const res = await fetch("http://localhost:5000/api/auth/google", {
+      console.log("🔗 URL de API:", `${API_URL}/auth/google`);
+      
+      const res = await fetch(`${API_URL}/auth/google`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -141,6 +146,25 @@ const CompleteGoogleRegistration = () => {
           },
         }),
       });
+
+      console.log("📊 Status de respuesta:", res.status, res.statusText);
+
+      // Verificar si la respuesta es JSON válida
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error("❌ La respuesta no es JSON válida. Content-Type:", contentType);
+        
+        // Leer como texto para debug
+        const textResponse = await res.text();
+        console.error("📄 Respuesta como texto:", textResponse.substring(0, 500));
+        
+        if (res.status === 404) {
+          alert("❌ La ruta de autenticación no está disponible en el servidor.");
+        } else {
+          alert(`❌ Error del servidor (${res.status}). La respuesta no es válida.`);
+        }
+        return;
+      }
 
       const data = await res.json();
       console.log("📥 Respuesta del servidor:", data);
@@ -161,7 +185,14 @@ const CompleteGoogleRegistration = () => {
       }
     } catch (error) {
       console.error("💥 Error de conexión:", error);
-      alert("⚠️ Error de conexión con el servidor. Por favor, intenta de nuevo.");
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        alert("❌ No se pudo conectar con el servidor. Verifica que esté corriendo en " + API_URL.replace('/api', ''));
+      } else if (error.message.includes('Unexpected token')) {
+        alert("❌ El servidor devolvió una respuesta inválida. La ruta puede no existir o estar mal configurada.");
+      } else {
+        alert("⚠️ Error de conexión: " + error.message);
+      }
     } finally {
       setLoading(false);
     }

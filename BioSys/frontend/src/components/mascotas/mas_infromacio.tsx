@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";  
 import { useNavigate, useParams } from "react-router-dom";
 
+// CONSTANTES - Consistente con otros archivos
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
+
 interface Vacuna {
   nombre: string;
   fecha: string;
@@ -56,7 +59,7 @@ const MascotaInfo: React.FC = () => {
           return;
         }
 
-        const url = `http://localhost:5000/api/mascotas/${idMascota}`;
+      const url = `${API_URL}/mascotas/${idMascota}`;
         const response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -219,7 +222,7 @@ const MascotaCard: React.FC<{ mascota: Mascota }> = ({ mascota }) => {
         return;
       }
 
-      const response = await fetch(`http://localhost:5000/api/mascotas/${mascota._id}`, {
+      const response = await fetch(`${API_URL}/mascotas/${mascota._id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,

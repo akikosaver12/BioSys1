@@ -26,7 +26,7 @@ type Cita = {
   mascota: Mascota | string;
 };
 
-const BASE_URL = 'http://localhost:5000/api'; // Ajusta al puerto de tu backend
+const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
 
 const CitasPage = () => {
   const [formData, setFormData] = useState({
@@ -76,7 +76,7 @@ const CitasPage = () => {
         return;
       }
 
-      const response = await fetch(`${BASE_URL}/mascotas`, {
+      const response = await fetch(`${API_URL}/mascotas`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -106,7 +106,7 @@ const CitasPage = () => {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch(`${BASE_URL}/citas`, {
+      const response = await fetch(`${API_URL}/citas`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -123,7 +123,7 @@ const CitasPage = () => {
   const obtenerHorariosDisponibles = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${BASE_URL}/citas/horarios-disponibles/${formData.fecha}`, {
+      const response = await fetch(`${API_URL}/citas/horarios-disponibles/${formData.fecha}`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -165,7 +165,7 @@ const CitasPage = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${BASE_URL}/citas`, {
+      const response = await fetch(`${API_URL}/citas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(formData)
@@ -236,7 +236,7 @@ const CitasPage = () => {
     if (!window.confirm('¿Estás seguro de que quieres cancelar esta cita?')) return;
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${BASE_URL}/citas/${citaId}`, {
+      const response = await fetch(`${API_URL}/citas/${citaId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

@@ -4,7 +4,7 @@ import ProductCard from '../components/shop/ProductCard';
 import Loading from '../components/common/Loading';
 import { Grid, List } from "lucide-react";
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com";
 
 const ProductsPage: React.FC = () => {
   const { products, loading, error } = useProducts();
