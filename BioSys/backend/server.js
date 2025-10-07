@@ -65,70 +65,75 @@ const checkEmailRateLimit = (email) => {
 
 // 📧 CONFIGURACIÓN MEJORADA DE NODEMAILER
 const crearTransporter = () => {
-  const emailUser = process.env.EMAIL_USER;
-  const emailPass = process.env.EMAIL_PASS;
-  
-  console.log('DEBUG: Verificando credenciales...');
-  console.log('EMAIL_USER:', emailUser);
-  console.log('EMAIL_PASS existe:', !!emailPass);
-  console.log('EMAIL_PASS es string:', typeof emailPass === 'string');
-  
-  if (!emailUser || !emailPass) {
-    console.error('ERROR: EMAIL_USER o EMAIL_PASS no definidos');
-    return null;
-  }
-  
-  if (emailUser === 'tu-email@gmail.com' || emailPass === 'tu-password-de-aplicacion') {
-    console.error('ERROR: Usando valores placeholder en .env');
-    return null;
-  }
-
-  const transporter = nodemailer.createTransporter({
-    service: 'gmail',
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: {
-      user: emailUser,
-      pass: emailPass
-    },
-    tls: {
-      rejectUnauthorized: false
-    },
-    pool: true,
-    maxConnections: 1,
-    rateDelta: 20000,
-    rateLimit: 3,
-    debug: true,
-    logger: true
-  });
-
-  transporter.verify((error, success) => {
-    if (error) {
-      console.error('ERROR en verificación de email:', error);
-      console.log('\n🔧 GUÍA DE SOLUCIÓN:');
-      console.log('1. Verifica que EMAIL_USER sea tu email real de Gmail');
-      console.log('2. Verifica que EMAIL_PASS sea una contraseña de aplicación (16 caracteres)');
-      console.log('3. Asegúrate de tener habilitada la verificación en 2 pasos en Google');
-      console.log('4. Genera una nueva contraseña de aplicación en: https://myaccount.google.com/apppasswords');
-      console.log('5. Reinicia el servidor después de actualizar las variables');
-      console.log('6. EMAIL_PASS no debe tener espacios - ejemplo: jzkulnzczqpnkeii');
-      console.log('Posibles causas específicas:');
-      if (error.message.includes('Invalid login')) {
-        console.log('- CAUSA: Contraseña de aplicación incorrecta');
-      } else if (error.message.includes('Username and Password not accepted')) {
-        console.log('- CAUSA: Credenciales rechazadas - genera nueva contraseña de aplicación');
-      } else if (error.message.includes('Connection timeout')) {
-        console.log('- CAUSA: Problema de red o firewall');
-      }
-      console.log('');
-    } else {
-      console.log('EXITO: Servidor de email configurado correctamente');
-      console.log('Listo para enviar emails desde:', emailUser);
+  try {
+    const emailUser = process.env.EMAIL_USER;
+    const emailPass = process.env.EMAIL_PASS;
+    
+    if (!emailUser || !emailPass) {
+      console.error('⚠️ EMAIL_USER o EMAIL_PASS no definidos - Servicio de email deshabilitado');
+      return null;
     }
-  });
+    
+    if (emailUser === 'tu-email@gmail.com' || emailPass === 'tu-password-de-aplicacion') {
+      console.error('⚠️ Usando valores placeholder en .env - Servicio de email deshabilitado');
+      return null;
+    }
 
-  return transporter;
+    // Verificar si nodemailer está disponible
+    if (!nodemailer) {
+      console.error('❌ Nodemailer no está instalado - Ejecuta: npm install nodemailer');
+      return null;
+    }
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: emailUser,
+        pass: emailPass
+      },
+      tls: {
+        rejectUnauthorized: false
+      },
+      pool: true,
+      maxConnections: 1,
+      rateDelta: 20000,
+      rateLimit: 3,
+      debug: true,
+      logger: true
+    });
+
+    transporter.verify((error, success) => {
+      if (error) {
+        console.error('ERROR en verificación de email:', error);
+        console.log('\n🔧 GUÍA DE SOLUCIÓN:');
+        console.log('1. Verifica que EMAIL_USER sea tu email real de Gmail');
+        console.log('2. Verifica que EMAIL_PASS sea una contraseña de aplicación (16 caracteres)');
+        console.log('3. Asegúrate de tener habilitada la verificación en 2 pasos en Google');
+        console.log('4. Genera una nueva contraseña de aplicación en: https://myaccount.google.com/apppasswords');
+        console.log('5. Reinicia el servidor después de actualizar las variables');
+        console.log('6. EMAIL_PASS no debe tener espacios - ejemplo: jzkulnzczqpnkeii');
+        console.log('Posibles causas específicas:');
+        if (error.message.includes('Invalid login')) {
+          console.log('- CAUSA: Contraseña de aplicación incorrecta');
+        } else if (error.message.includes('Username and Password not accepted')) {
+          console.log('- CAUSA: Credenciales rechazadas - genera nueva contraseña de aplicación');
+        } else if (error.message.includes('Connection timeout')) {
+          console.log('- CAUSA: Problema de red o firewall');
+        }
+        console.log('');
+      } else {
+        console.log('EXITO: Servidor de email configurado correctamente');
+        console.log('Listo para enviar emails desde:', emailUser);
+      }
+    });
+
+    return transporter;
+  } catch (err) {
+    console.error('❌ Error creando transporter:', err);
+    return null;
+  }
 };
 
 let transporter;
@@ -3350,42 +3355,7 @@ router.get("/health", (req, res) => {
    ====================== */
 app.use("/api", router);
 
-/* ======================
-   🔧 SOLUCIÓN AL ERROR 404 AL REFRESCAR - CORREGIDA
-   ====================== */
 
-// Ruta del build de React - AJUSTA SEGÚN TU ESTRUCTURA DE CARPETAS
-const buildPath = path.join(__dirname, "../client/build");
-
-// Verificar si existe el directorio build
-if (fs.existsSync(buildPath)) {
-  console.log('📦 Sirviendo aplicación React desde:', buildPath);
-  
-  // Servir archivos estáticos de React
-  app.use(express.static(buildPath));
-
-  // CATCH-ALL CORREGIDO: Usar "/*" en lugar de "*"
-  app.get("/*", (req, res) => {
-    // Solo si NO es una ruta de API o uploads
-    if (!req.path.startsWith("/api") && !req.path.startsWith("/uploads")) {
-      res.sendFile(path.join(buildPath, "index.html"));
-    }
-  });
-} else {
-  console.log('⚠️ Directorio build no encontrado en:', buildPath);
-  console.log('⚠️ Ejecuta "npm run build" en tu carpeta de React');
-  console.log('⚠️ O ajusta la ruta buildPath en el servidor');
-  
-  // Ruta por defecto si no existe el build
-  app.get("/*", (req, res) => {
-    if (!req.path.startsWith("/api") && !req.path.startsWith("/uploads")) {
-      res.status(404).json({ 
-        error: "Build de React no encontrado",
-        mensaje: "Ejecuta 'npm run build' en tu aplicación React"
-      });
-    }
-  });
-}
 
 /* ======================
    Manejo de errores global
