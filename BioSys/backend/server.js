@@ -736,8 +736,13 @@ const isAdmin = (req, res, next) => {
    📸 Configuración de Cloudinary Storage para Multer
    ====================== */
 
+
+
+// Verificar si Cloudinary está configurado
+const isCloudinaryConfigured = !!(process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+
 // Storage para mascotas
-const mascotasStorage = new CloudinaryStorage({
+const mascotasStorage = isCloudinaryConfigured ? new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'biosysvet/mascotas',
@@ -745,10 +750,19 @@ const mascotasStorage = new CloudinaryStorage({
     transformation: [{ width: 800, height: 800, crop: 'limit' }],
     public_id: (req, file) => `mascota_${Date.now()}_${Math.round(Math.random() * 1e9)}`
   }
+}) : multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, "uploads");
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
 });
 
 // Storage para productos
-const productosStorage = new CloudinaryStorage({
+const productosStorage = isCloudinaryConfigured ? new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'biosysvet/productos',
@@ -756,9 +770,18 @@ const productosStorage = new CloudinaryStorage({
     transformation: [{ width: 1000, height: 1000, crop: 'limit' }],
     public_id: (req, file) => `producto_${Date.now()}_${Math.round(Math.random() * 1e9)}`
   }
+}) : multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, "uploads");
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
 });
 
-// Multer configurado con Cloudinary
+// Multer configurado
 const uploadMascota = multer({ 
   storage: mascotasStorage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -783,8 +806,16 @@ const uploadProducto = multer({
   }
 });
 
-// Mantener compatibilidad con upload genérico
+// Mantener compatibilidad
 const upload = uploadMascota;
+
+console.log(isCloudinaryConfigured 
+  ? '✅ Multer configurado con Cloudinary Storage' 
+  : '⚠️ Cloudinary no configurado - usando almacenamiento local'
+);
+
+// Storage para productos
+// (Eliminado: declaración duplicada de productosStorage)
 
 /* ======================
    FUNCIONES DE UTILIDAD - SIN CAMBIOS
@@ -3000,7 +3031,6 @@ router.get("/productos", async (req, res) => {
 
     const productos = await Producto.find(filtros).populate("usuario", "name email telefono");
 
-    // 📸 Las URLs de Cloudinary ya vienen completas
     const productosConDatos = productos.map((p) => {
       const producto = p.toObject();
       
@@ -3009,8 +3039,23 @@ router.get("/productos", async (req, res) => {
       producto.descuentoVigente = p.isDescuentoVigente();
       producto.ahorroDescuento = producto.precio - producto.precioConDescuento;
       
-      // URL de Cloudinary directa
-      producto.imagen = p.imagen || null;
+      // 📸 Manejar imagen de Cloudinary o local
+      if (producto.imagen) {
+        // Si ya es URL completa (Cloudinary), dejarla así
+        if (producto.imagen.startsWith('http')) {
+          producto.imagen = producto.imagen;
+        } 
+        // Si es ruta local, construir URL
+        else if (producto.imagen.startsWith('/uploads')) {
+          producto.imagen = `${req.protocol}://${req.get("host")}${producto.imagen}`;
+        }
+        // Si no tiene protocolo ni /uploads, asumir que es Cloudinary incompleto
+        else {
+          producto.imagen = producto.imagen;
+        }
+      } else {
+        producto.imagen = null;
+      }
       
       return producto;
     });
@@ -3018,7 +3063,11 @@ router.get("/productos", async (req, res) => {
     res.json(productosConDatos);
   } catch (err) {
     console.error("❌ Error listando productos:", err);
-    res.status(500).json({ msg: "Error al listar productos", error: err.message });
+    res.status(500).json({ 
+      msg: "Error al listar productos", 
+      error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 });
 
