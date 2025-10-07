@@ -2945,6 +2945,19 @@ router.get("/admin/dashboard", verifyToken, isAdmin, async (req, res) => {
    ====================== */
 router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (req, res) => {
   try {
+    console.log('📦 === INICIANDO CREACIÓN DE PRODUCTO ===');
+    console.log('📸 Archivo recibido:', req.file ? 'SÍ' : 'NO');
+    if (req.file) {
+      console.log('📸 Detalles del archivo:', {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        path: req.file.path
+      });
+    }
+    console.log('📝 Body recibido:', Object.keys(req.body));
+    
     const { 
       nombre, descripcion, precio, categoria, stock,
       tieneDescuento, porcentajeDescuento, fechaInicioDescuento, fechaFinDescuento,
@@ -2952,7 +2965,14 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
       envioGratis
     } = req.body;
 
-    console.log('📦 Datos recibidos para nuevo producto:', req.body);
+    // Validaciones básicas
+    if (!nombre || !descripcion || !precio) {
+      return res.status(400).json({ 
+        error: "Nombre, descripción y precio son obligatorios" 
+      });
+    }
+
+    console.log('✅ Validaciones básicas pasadas');
 
     // Preparar objeto de producto
     const datosProducto = {
@@ -2975,102 +2995,81 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
       }
     };
 
+    console.log('📋 Datos del producto preparados:', {
+      nombre: datosProducto.nombre,
+      precio: datosProducto.precio,
+      categoria: datosProducto.categoria
+    });
+
     // Validar datos del producto
     const validacion = validarProducto(datosProducto);
     if (!validacion.valido) {
+      console.error('❌ Validación fallida:', validacion.mensaje);
       return res.status(400).json({ error: validacion.mensaje });
+    }
+
+    console.log('✅ Validación de producto exitosa');
+
+    // Preparar imagen
+    let imagenUrl = "";
+    if (req.file) {
+      // Si usamos Cloudinary, req.file.path ya tiene la URL completa
+      if (req.file.path && req.file.path.includes('cloudinary.com')) {
+        imagenUrl = req.file.path;
+        console.log('📸 Imagen subida a Cloudinary:', imagenUrl);
+      } 
+      // Si usamos almacenamiento local
+      else if (req.file.filename) {
+        imagenUrl = `/uploads/${req.file.filename}`;
+        console.log('💾 Imagen guardada localmente:', imagenUrl);
+      }
     }
 
     const nuevoProducto = new Producto({
       ...datosProducto,
-      imagen: req.file ? req.file.path : "", // 📸 URL de Cloudinary
+      imagen: imagenUrl,
       usuario: req.user.id,
     });
 
+    console.log('💾 Guardando producto en BD...');
     await nuevoProducto.save();
-    console.log('✅ Producto creado:', nuevoProducto.nombre, '📸 Imagen Cloudinary:', nuevoProducto.imagen);
+    
+    console.log('✅ Producto creado exitosamente:', nuevoProducto._id);
     
     res.status(201).json({ 
       msg: "Producto creado exitosamente", 
       producto: nuevoProducto 
     });
+    
   } catch (err) {
-    console.error("❌ Error creando producto:", err);
+    console.error("❌ ERROR COMPLETO AL CREAR PRODUCTO:");
+    console.error("Nombre:", err.name);
+    console.error("Mensaje:", err.message);
+    console.error("Stack:", err.stack);
+    
     if (err.name === 'ValidationError') {
       const errors = Object.values(err.errors).map(e => e.message);
-      res.status(400).json({ msg: "Error de validación", errors });
+      return res.status(400).json({ 
+        msg: "Error de validación", 
+        errors,
+        detalles: err.message 
+      });
+    } else if (err.name === 'MulterError') {
+      return res.status(400).json({ 
+        msg: "Error al subir archivo",
+        error: err.message,
+        code: err.code
+      });
     } else {
-      res.status(500).json({ msg: "Error al crear producto", error: err.message });
+      res.status(500).json({ 
+        msg: "Error al crear producto", 
+        error: err.message,
+        tipo: err.name,
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      });
     }
   }
 });
-
-// Listar productos con información completa
-router.get("/productos", async (req, res) => {
-  try {
-    const { categoria, descuento, garantia, envioGratis } = req.query;
-    
-    let filtros = { activo: true };
-    
-    // Aplicar filtros
-    if (categoria && categoria !== 'todos') {
-      filtros.categoria = categoria;
-    }
-    
-    if (descuento === 'true') {
-      filtros['descuento.tiene'] = true;
-    }
-    
-    if (garantia === 'true') {
-      filtros['garantia.tiene'] = true;
-    }
-    
-    if (envioGratis === 'true') {
-      filtros.envioGratis = true;
-    }
-
-    const productos = await Producto.find(filtros).populate("usuario", "name email telefono");
-
-    const productosConDatos = productos.map((p) => {
-      const producto = p.toObject();
-      
-      // Agregar información calculada
-      producto.precioConDescuento = p.getPrecioConDescuento();
-      producto.descuentoVigente = p.isDescuentoVigente();
-      producto.ahorroDescuento = producto.precio - producto.precioConDescuento;
-      
-      // 📸 Manejar imagen de Cloudinary o local
-      if (producto.imagen) {
-        // Si ya es URL completa (Cloudinary), dejarla así
-        if (producto.imagen.startsWith('http')) {
-          producto.imagen = producto.imagen;
-        } 
-        // Si es ruta local, construir URL
-        else if (producto.imagen.startsWith('/uploads')) {
-          producto.imagen = `${req.protocol}://${req.get("host")}${producto.imagen}`;
-        }
-        // Si no tiene protocolo ni /uploads, asumir que es Cloudinary incompleto
-        else {
-          producto.imagen = producto.imagen;
-        }
-      } else {
-        producto.imagen = null;
-      }
-      
-      return producto;
-    });
-
-    res.json(productosConDatos);
-  } catch (err) {
-    console.error("❌ Error listando productos:", err);
-    res.status(500).json({ 
-      msg: "Error al listar productos", 
-      error: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
-  }
-});
-
 router.get("/productos/:id", async (req, res) => {
   try {
     const producto = await Producto.findById(req.params.id).populate("usuario", "name email telefono");
