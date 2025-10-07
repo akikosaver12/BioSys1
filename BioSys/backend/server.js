@@ -3349,7 +3349,7 @@ router.get("/health", (req, res) => {
    Montar rutas
    ====================== */
 // 1. Servir archivos estáticos de React (build)
-const buildPath = path.join(__dirname, "../client/build"); // Ajusta la ruta según tu estructura
+const buildPath = path.join(__dirname, "../frontend/build");// Ajusta la ruta según tu estructura
 app.use(express.static(buildPath));
 
 // 2. CATCH-ALL: Redirigir todas las rutas no-API a index.html de React
