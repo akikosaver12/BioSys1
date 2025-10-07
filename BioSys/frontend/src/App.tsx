@@ -21,6 +21,7 @@ import Prefil from './components/user/prefil';
 import Grejisto from './components/user/GRegistration';
 import ProductDetail from './components/shop/ProductDetail';
 
+
 // Nuevos componentes de verificación de email
 import EmailVerificationPending from './components/user/EmailVerificationPending';
 import EmailVerificationSuccess from './components/user/EmailVerificationSuccess';

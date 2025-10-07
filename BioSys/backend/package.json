@@ -8,6 +8,12 @@
     "dev": "nodemon server.js",
     "start": "node server.js"
   },
+
+"engines": {
+    "node": ">=18.0.0"
+  }
+,
+
   "keywords": [
     "veterinaria",
     "api",
