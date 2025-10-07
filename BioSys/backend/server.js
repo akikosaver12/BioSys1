@@ -3346,19 +3346,46 @@ router.get("/health", (req, res) => {
 });
 
 /* ======================
-   Montar rutas
+   Montar rutas de API
    ====================== */
-// 1. Servir archivos estáticos de React (build)
-const buildPath = path.join(__dirname, "../frontend/build");// Ajusta la ruta según tu estructura
-app.use(express.static(buildPath));
+app.use("/api", router);
 
-// 2. CATCH-ALL: Redirigir todas las rutas no-API a index.html de React
-app.get("*", (req, res) => {
-  // Solo redirigir si NO es una ruta de API
-  if (!req.path.startsWith("/api")) {
-    res.sendFile(path.join(buildPath, "index.html"));
-  }
-});
+/* ======================
+   🔧 SOLUCIÓN AL ERROR 404 AL REFRESCAR - CORREGIDA
+   ====================== */
+
+// Ruta del build de React - AJUSTA SEGÚN TU ESTRUCTURA DE CARPETAS
+const buildPath = path.join(__dirname, "../client/build");
+
+// Verificar si existe el directorio build
+if (fs.existsSync(buildPath)) {
+  console.log('📦 Sirviendo aplicación React desde:', buildPath);
+  
+  // Servir archivos estáticos de React
+  app.use(express.static(buildPath));
+
+  // CATCH-ALL CORREGIDO: Usar "/*" en lugar de "*"
+  app.get("/*", (req, res) => {
+    // Solo si NO es una ruta de API o uploads
+    if (!req.path.startsWith("/api") && !req.path.startsWith("/uploads")) {
+      res.sendFile(path.join(buildPath, "index.html"));
+    }
+  });
+} else {
+  console.log('⚠️ Directorio build no encontrado en:', buildPath);
+  console.log('⚠️ Ejecuta "npm run build" en tu carpeta de React');
+  console.log('⚠️ O ajusta la ruta buildPath en el servidor');
+  
+  // Ruta por defecto si no existe el build
+  app.get("/*", (req, res) => {
+    if (!req.path.startsWith("/api") && !req.path.startsWith("/uploads")) {
+      res.status(404).json({ 
+        error: "Build de React no encontrado",
+        mensaje: "Ejecuta 'npm run build' en tu aplicación React"
+      });
+    }
+  });
+}
 
 /* ======================
    Manejo de errores global
