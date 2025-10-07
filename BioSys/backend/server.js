@@ -27,6 +27,23 @@ const router = express.Router();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key";
 
+
+// 📸 CONFIGURACIÓN DE CLOUDINARY
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+// Configurar Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dtlenl7pf',
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+console.log('📸 Cloudinary configurado:', process.env.CLOUDINARY_CLOUD_NAME);
+
+
+
+
 // 💳 CONFIGURAR MERCADO PAGO - PRODUCCIÓN
 console.log('🔍 MP_ACCESS_TOKEN configurado:', !!process.env.MP_ACCESS_TOKEN);
 console.log('🔍 Primeros caracteres del token:', process.env.MP_ACCESS_TOKEN?.substring(0, 15));
@@ -716,24 +733,58 @@ const isAdmin = (req, res, next) => {
 };
 
 /* ======================
-   Configuración de Multer - SIN CAMBIOS
+   📸 Configuración de Cloudinary Storage para Multer
    ====================== */
-const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, uploadsDir),
-  filename: (_, file, cb) =>
-    cb(null, Date.now() + "-" + Math.round(Math.random() * 1e9) + path.extname(file.originalname)),
+
+// Storage para mascotas
+const mascotasStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'biosysvet/mascotas',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    transformation: [{ width: 800, height: 800, crop: 'limit' }],
+    public_id: (req, file) => `mascota_${Date.now()}_${Math.round(Math.random() * 1e9)}`
+  }
 });
-const upload = multer({ 
-  storage,
+
+// Storage para productos
+const productosStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'biosysvet/productos',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    transformation: [{ width: 1000, height: 1000, crop: 'limit' }],
+    public_id: (req, file) => `producto_${Date.now()}_${Math.round(Math.random() * 1e9)}`
+  }
+});
+
+// Multer configurado con Cloudinary
+const uploadMascota = multer({ 
+  storage: mascotasStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
       cb(new Error('Solo se permiten archivos de imagen'), false);
     }
-  },
-  limits: { fileSize: 5 * 1024 * 1024 }
+  }
 });
+
+const uploadProducto = multer({ 
+  storage: productosStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos de imagen'), false);
+    }
+  }
+});
+
+// Mantener compatibilidad con upload genérico
+const upload = uploadMascota;
 
 /* ======================
    FUNCIONES DE UTILIDAD - SIN CAMBIOS
@@ -2168,7 +2219,7 @@ router.get("/usuarios/:id/mascotas", verifyToken, async (req, res) => {
 /* ======================
    Mascotas
    ====================== */
-router.post("/mascotas", verifyToken, upload.single("imagen"), async (req, res) => {
+router.post("/mascotas", verifyToken, uploadMascota.single("imagen"), async (req, res) => {
   try {
     const { nombre, especie, raza, edad, genero, estado, enfermedades, historial } = req.body;
 
@@ -2206,14 +2257,12 @@ router.post("/mascotas", verifyToken, upload.single("imagen"), async (req, res) 
       estado: estado.trim(),
       enfermedades: enfermedades ? enfermedades.trim() : "",
       historial: historial ? historial.trim() : "",
-      imagen: req.file
-        ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
-        : "",
+      imagen: req.file ? req.file.path : "", // 📸 Cloudinary devuelve la URL en file.path
       usuario: req.user.id,
     });
 
     await nuevaMascota.save();
-    console.log('✅ Mascota registrada:', nuevaMascota.nombre, 'para usuario:', req.user.id);
+    console.log('✅ Mascota registrada:', nuevaMascota.nombre, '📸 Imagen Cloudinary:', nuevaMascota.imagen);
     res.status(201).json({ msg: "Mascota registrada", mascota: nuevaMascota });
   } catch (err) {
     console.error("Error creando mascota:", err);
@@ -2232,13 +2281,10 @@ router.get("/mascotas", verifyToken, async (req, res) => {
     const mascotas = await Mascota.find({ usuario: req.user.id }).populate("usuario", "name email telefono");
     console.log('📋 Mascotas encontradas:', mascotas.length);
 
+    // 📸 Las URLs de Cloudinary ya vienen completas, no necesitan transformación
     const mascotasConImagen = mascotas.map((m) => ({
       ...m.toObject(),
-      imagen: m.imagen
-        ? m.imagen.startsWith("http")
-          ? m.imagen
-          : `${req.protocol}://${req.get("host")}${m.imagen}`
-        : null,
+      imagen: m.imagen || null, // URL de Cloudinary directa
     }));
 
     res.json(mascotasConImagen);
@@ -2248,7 +2294,7 @@ router.get("/mascotas", verifyToken, async (req, res) => {
   }
 });
 
-router.put("/mascotas/:id", verifyToken, upload.single("imagen"), async (req, res) => {
+router.put("/mascotas/:id", verifyToken, uploadMascota.single("imagen"), async (req, res) => {
   try {
     const mascota = await Mascota.findById(req.params.id);
     if (!mascota) {
@@ -2284,7 +2330,23 @@ router.put("/mascotas/:id", verifyToken, upload.single("imagen"), async (req, re
     if (historial !== undefined) mascota.historial = historial.trim();
 
     if (req.file) {
-      mascota.imagen = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+      // 📸 Eliminar imagen anterior de Cloudinary si existe
+      if (mascota.imagen && mascota.imagen.includes('cloudinary.com')) {
+        try {
+          const urlParts = mascota.imagen.split('/');
+          const uploadIndex = urlParts.indexOf('upload');
+          if (uploadIndex !== -1) {
+            const publicIdWithExtension = urlParts.slice(uploadIndex + 2).join('/');
+            const publicId = publicIdWithExtension.substring(0, publicIdWithExtension.lastIndexOf('.'));
+            await cloudinary.uploader.destroy(publicId);
+            console.log('🗑️ Imagen anterior eliminada de Cloudinary:', publicId);
+          }
+        } catch (error) {
+          console.log('⚠️ Error eliminando imagen anterior de Cloudinary:', error.message);
+        }
+      }
+      mascota.imagen = req.file.path; // 📸 Nueva URL de Cloudinary
+      console.log('✅ Nueva imagen subida a Cloudinary:', req.file.path);
     }
 
     await mascota.save();
@@ -2317,13 +2379,10 @@ router.get("/mascotas/:id", verifyToken, async (req, res) => {
       });
     }
 
+    // 📸 URL de Cloudinary viene completa
     const mascotaConImagen = {
       ...mascota.toObject(),
-      imagen: mascota.imagen
-        ? mascota.imagen.startsWith("http")
-          ? mascota.imagen
-          : `${req.protocol}://${req.get("host")}${mascota.imagen}`
-        : null,
+      imagen: mascota.imagen || null,
     };
 
     res.json(mascotaConImagen);
@@ -2853,24 +2912,12 @@ router.get("/admin/dashboard", verifyToken, isAdmin, async (req, res) => {
 /* ======================
    PRODUCTOS ACTUALIZADOS CON NUEVOS CAMPOS
    ====================== */
-router.post("/productos", verifyToken, upload.single("imagen"), async (req, res) => {
+router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (req, res) => {
   try {
     const { 
-      nombre, 
-      descripcion, 
-      precio, 
-      categoria,
-      stock,
-      // Campos de descuento
-      tieneDescuento,
-      porcentajeDescuento,
-      fechaInicioDescuento,
-      fechaFinDescuento,
-      // Campos de garantía
-      tieneGarantia,
-      mesesGarantia,
-      descripcionGarantia,
-      // Envío gratis
+      nombre, descripcion, precio, categoria, stock,
+      tieneDescuento, porcentajeDescuento, fechaInicioDescuento, fechaFinDescuento,
+      tieneGarantia, mesesGarantia, descripcionGarantia,
       envioGratis
     } = req.body;
 
@@ -2905,14 +2952,12 @@ router.post("/productos", verifyToken, upload.single("imagen"), async (req, res)
 
     const nuevoProducto = new Producto({
       ...datosProducto,
-      imagen: req.file
-        ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
-        : "",
+      imagen: req.file ? req.file.path : "", // 📸 URL de Cloudinary
       usuario: req.user.id,
     });
 
     await nuevoProducto.save();
-    console.log('✅ Producto creado exitosamente:', nuevoProducto.nombre);
+    console.log('✅ Producto creado:', nuevoProducto.nombre, '📸 Imagen Cloudinary:', nuevoProducto.imagen);
     
     res.status(201).json({ 
       msg: "Producto creado exitosamente", 
@@ -2955,6 +3000,7 @@ router.get("/productos", async (req, res) => {
 
     const productos = await Producto.find(filtros).populate("usuario", "name email telefono");
 
+    // 📸 Las URLs de Cloudinary ya vienen completas
     const productosConDatos = productos.map((p) => {
       const producto = p.toObject();
       
@@ -2963,12 +3009,8 @@ router.get("/productos", async (req, res) => {
       producto.descuentoVigente = p.isDescuentoVigente();
       producto.ahorroDescuento = producto.precio - producto.precioConDescuento;
       
-      // Formatear imagen
-      producto.imagen = p.imagen
-        ? p.imagen.startsWith("http")
-          ? p.imagen
-          : `${req.protocol}://${req.get("host")}${p.imagen}`
-        : null;
+      // URL de Cloudinary directa
+      producto.imagen = p.imagen || null;
       
       return producto;
     });
@@ -2992,12 +3034,8 @@ router.get("/productos/:id", async (req, res) => {
     productoObj.descuentoVigente = producto.isDescuentoVigente();
     productoObj.ahorroDescuento = productoObj.precio - productoObj.precioConDescuento;
     
-    // Formatear imagen
-    productoObj.imagen = producto.imagen
-      ? producto.imagen.startsWith("http")
-        ? producto.imagen
-        : `${req.protocol}://${req.get("host")}${producto.imagen}`
-      : null;
+    // 📸 URL de Cloudinary directa
+    productoObj.imagen = producto.imagen || null;
     
     res.json(productoObj);
   } catch (err) {
@@ -3007,30 +3045,22 @@ router.get("/productos/:id", async (req, res) => {
 });
 
 // Actualizar producto
-router.put("/productos/:id", verifyToken, upload.single("imagen"), async (req, res) => {
+
+
+router.put("/productos/:id", verifyToken, uploadProducto.single("imagen"), async (req, res) => {
   try {
     const producto = await Producto.findById(req.params.id);
     if (!producto) return res.status(404).json({ error: "Producto no encontrado" });
 
     if (req.user.role !== "admin" && producto.usuario.toString() !== req.user.id) {
-      return res.status(403).json({ error: "No autorizado para eliminar este producto" });
+      return res.status(403).json({ error: "No autorizado para editar este producto" });
     }
 
     const { 
-      nombre, 
-      descripcion, 
-      precio, 
-      categoria,
-      stock,
-      tieneDescuento,
-      porcentajeDescuento,
-      fechaInicioDescuento,
-      fechaFinDescuento,
-      tieneGarantia,
-      mesesGarantia,
-      descripcionGarantia,
-      envioGratis,
-      activo
+      nombre, descripcion, precio, categoria, stock,
+      tieneDescuento, porcentajeDescuento, fechaInicioDescuento, fechaFinDescuento,
+      tieneGarantia, mesesGarantia, descripcionGarantia,
+      envioGratis, activo
     } = req.body;
 
     // Actualizar campos básicos
@@ -3068,9 +3098,25 @@ router.put("/productos/:id", verifyToken, upload.single("imagen"), async (req, r
       }
     }
 
-    // Actualizar imagen si se proporciona
+    // 📸 Actualizar imagen si se proporciona
     if (req.file) {
-      producto.imagen = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+      // Eliminar imagen anterior de Cloudinary
+      if (producto.imagen && producto.imagen.includes('cloudinary.com')) {
+        try {
+          const urlParts = producto.imagen.split('/');
+          const uploadIndex = urlParts.indexOf('upload');
+          if (uploadIndex !== -1) {
+            const publicIdWithExtension = urlParts.slice(uploadIndex + 2).join('/');
+            const publicId = publicIdWithExtension.substring(0, publicIdWithExtension.lastIndexOf('.'));
+            await cloudinary.uploader.destroy(publicId);
+            console.log('🗑️ Imagen anterior eliminada de Cloudinary:', publicId);
+          }
+        } catch (error) {
+          console.log('⚠️ Error eliminando imagen anterior:', error.message);
+        }
+      }
+      producto.imagen = req.file.path; // 📸 Nueva URL de Cloudinary
+      console.log('✅ Nueva imagen subida a Cloudinary:', req.file.path);
     }
 
     // Validar antes de guardar
@@ -3099,24 +3145,6 @@ router.put("/productos/:id", verifyToken, upload.single("imagen"), async (req, r
     } else {
       res.status(500).json({ msg: "Error al actualizar producto", error: err.message });
     }
-  }
-});
-
-router.delete("/productos/:id", verifyToken, async (req, res) => {
-  try {
-    const producto = await Producto.findById(req.params.id);
-    if (!producto) return res.status(404).json({ error: "Producto no encontrado" });
-
-    if (req.user.role !== "admin" && producto.usuario.toString() !== req.user.id) {
-      return res.status(403).json({ error: "No autorizado para eliminar este producto" });
-    }
-
-    await producto.deleteOne();
-    console.log('🗑️ Producto eliminado:', producto.nombre);
-    res.json({ msg: "Producto eliminado exitosamente" });
-  } catch (err) {
-    console.error("❌ Error eliminando producto:", err);
-    res.status(500).json({ msg: "Error al eliminar producto", error: err.message });
   }
 });
 
