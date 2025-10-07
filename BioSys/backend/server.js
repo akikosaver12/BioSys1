@@ -3348,7 +3348,17 @@ router.get("/health", (req, res) => {
 /* ======================
    Montar rutas
    ====================== */
-app.use("/api", router);
+// 1. Servir archivos estáticos de React (build)
+const buildPath = path.join(__dirname, "../client/build"); // Ajusta la ruta según tu estructura
+app.use(express.static(buildPath));
+
+// 2. CATCH-ALL: Redirigir todas las rutas no-API a index.html de React
+app.get("*", (req, res) => {
+  // Solo redirigir si NO es una ruta de API
+  if (!req.path.startsWith("/api")) {
+    res.sendFile(path.join(buildPath, "index.html"));
+  }
+});
 
 /* ======================
    Manejo de errores global
