@@ -10,11 +10,11 @@ const fs = require("fs");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const { OAuth2Client } = require('google-auth-library');
-const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');// 💳 NUEVO - Mercado Pago
+const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
 
 dotenv.config();
 
-// DEBUG TEMPORAL - MOVIDO AL LUGAR CORRECTO
+// DEBUG TEMPORAL
 console.log('=== DEBUG EMAIL CONFIG ===');
 console.log('EMAIL_USER:', process.env.EMAIL_USER);
 console.log('EMAIL_PASS definido:', !!process.env.EMAIL_PASS);
@@ -27,24 +27,7 @@ const router = express.Router();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key";
 
-
-// 📸 CONFIGURACIÓN DE CLOUDINARY
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-
-// Configurar Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dtlenl7pf',
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
-console.log('📸 Cloudinary configurado:', process.env.CLOUDINARY_CLOUD_NAME);
-
-
-
-
-// 💳 CONFIGURAR MERCADO PAGO - PRODUCCIÓN
+// 💳 CONFIGURAR MERCADO PAGO
 console.log('🔍 MP_ACCESS_TOKEN configurado:', !!process.env.MP_ACCESS_TOKEN);
 console.log('🔍 Primeros caracteres del token:', process.env.MP_ACCESS_TOKEN?.substring(0, 15));
 
@@ -57,7 +40,6 @@ if (!process.env.MP_ACCESS_TOKEN) {
   console.error('❌ ERROR: MP_ACCESS_TOKEN no está configurado en las variables de entorno');
   console.error('❌ Mercado Pago NO funcionará correctamente');
 }
-
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "503963971592-17vo21di0tjf249341l4ocscemath5p0.apps.googleusercontent.com";
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
@@ -96,11 +78,11 @@ const crearTransporter = () => {
       return null;
     }
 
-    // Verificar si nodemailer está disponible
     if (!nodemailer) {
       console.error('❌ Nodemailer no está instalado - Ejecuta: npm install nodemailer');
       return null;
     }
+    
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       host: 'smtp.gmail.com',
@@ -131,15 +113,6 @@ const crearTransporter = () => {
         console.log('4. Genera una nueva contraseña de aplicación en: https://myaccount.google.com/apppasswords');
         console.log('5. Reinicia el servidor después de actualizar las variables');
         console.log('6. EMAIL_PASS no debe tener espacios - ejemplo: jzkulnzczqpnkeii');
-        console.log('Posibles causas específicas:');
-        if (error.message.includes('Invalid login')) {
-          console.log('- CAUSA: Contraseña de aplicación incorrecta');
-        } else if (error.message.includes('Username and Password not accepted')) {
-          console.log('- CAUSA: Credenciales rechazadas - genera nueva contraseña de aplicación');
-        } else if (error.message.includes('Connection timeout')) {
-          console.log('- CAUSA: Problema de red o firewall');
-        }
-        console.log('');
       } else {
         console.log('EXITO: Servidor de email configurado correctamente');
         console.log('Listo para enviar emails desde:', emailUser);
@@ -240,7 +213,7 @@ const connectDB = async () => {
 connectDB();
 
 /* ======================
-   MODELOS - SIN CAMBIOS
+   MODELOS
    ====================== */
 
 const userSchema = new mongoose.Schema(
@@ -385,6 +358,7 @@ const mascotaSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
 const Mascota = mongoose.model("Mascota", mascotaSchema);
 
 const productoSchema = new mongoose.Schema(
@@ -499,7 +473,7 @@ citaSchema.index({ fecha: 1, hora: 1 }, { unique: true });
 const Cita = mongoose.model("Cita", citaSchema);
 
 /* ======================
-   🤖 SISTEMA AUTOMÁTICO DE GESTIÓN DE CITAS - SIN CAMBIOS
+   🤖 SISTEMA AUTOMÁTICO DE GESTIÓN DE CITAS
    ====================== */
 
 const actualizarCitasVencidas = async () => {
@@ -707,7 +681,7 @@ const detenerSistemaAutomatico = () => {
 };
 
 /* ======================
-   Middlewares de Auth - SIN CAMBIOS
+   Middlewares de Auth
    ====================== */
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
@@ -733,58 +707,28 @@ const isAdmin = (req, res, next) => {
 };
 
 /* ======================
-   📸 Configuración de Cloudinary Storage para Multer
+   📸 CONFIGURACIÓN DE ALMACENAMIENTO LOCAL (FUNCIONARÁ SIEMPRE)
    ====================== */
 
-
-
-// Verificar si Cloudinary está configurado
-const isCloudinaryConfigured = !!(process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
-
-// Storage para mascotas
-const mascotasStorage = isCloudinaryConfigured ? new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'biosysvet/mascotas',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-    transformation: [{ width: 800, height: 800, crop: 'limit' }],
-    public_id: (req, file) => `mascota_${Date.now()}_${Math.round(Math.random() * 1e9)}`
-  }
-}) : multer.diskStorage({
+const localStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(__dirname, "uploads");
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+      console.log('📁 Carpeta uploads creada');
+    }
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.originalname);
+    cb(null, file.fieldname + '-' + uniqueSuffix + extension);
   }
 });
 
-// Storage para productos
-const productosStorage = isCloudinaryConfigured ? new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'biosysvet/productos',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-    transformation: [{ width: 1000, height: 1000, crop: 'limit' }],
-    public_id: (req, file) => `producto_${Date.now()}_${Math.round(Math.random() * 1e9)}`
-  }
-}) : multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, "uploads");
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
-
-// Multer configurado
 const uploadMascota = multer({ 
-  storage: mascotasStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  storage: localStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
@@ -795,8 +739,8 @@ const uploadMascota = multer({
 });
 
 const uploadProducto = multer({ 
-  storage: productosStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  storage: localStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
@@ -806,19 +750,13 @@ const uploadProducto = multer({
   }
 });
 
-// Mantener compatibilidad
 const upload = uploadMascota;
 
-console.log(isCloudinaryConfigured 
-  ? '✅ Multer configurado con Cloudinary Storage' 
-  : '⚠️ Cloudinary no configurado - usando almacenamiento local'
-);
-
-// Storage para productos
-// (Eliminado: declaración duplicada de productosStorage)
+console.log('✅ Multer configurado con almacenamiento LOCAL');
+console.log('📁 Carpeta de uploads:', path.join(__dirname, "uploads"));
 
 /* ======================
-   FUNCIONES DE UTILIDAD - SIN CAMBIOS
+   FUNCIONES DE UTILIDAD
    ====================== */
 const esHorarioValido = (hora) => {
   const [hours, minutes] = hora.split(':').map(Number);
@@ -922,7 +860,7 @@ const validarProducto = (datos) => {
 };
 
 /* ======================
-   📧 FUNCIONES DE EMAIL - SIN CAMBIOS
+   📧 FUNCIONES DE EMAIL
    ====================== */
 
 const generarTokenVerificacion = () => {
@@ -1114,7 +1052,7 @@ const enviarEmailVerificacion = async (email, nombre, token) => {
 };
 
 /* ======================
-   FUNCIONES GOOGLE OAUTH - SIN CAMBIOS
+   FUNCIONES GOOGLE OAUTH
    ====================== */
 
 const verifyGoogleToken = async (token) => {
@@ -1143,12 +1081,10 @@ const verifyGoogleToken = async (token) => {
   }
 };
 
-
 /* ======================
    💳 RUTAS DE MERCADO PAGO
    ====================== */
 
-// Crear preferencia de pago
 router.post("/crear-preferencia-pago", verifyToken, async (req, res) => {
   try {
     const { items, payer } = req.body;
@@ -1164,8 +1100,7 @@ router.post("/crear-preferencia-pago", verifyToken, async (req, res) => {
 
     const preferenceClient = new Preference(mercadopagoClient);
 
-    // Determinar si usar URLs completas basado en el entorno
-const usarURLsCompletas = BACKEND_URL.startsWith('https://');
+    const usarURLsCompletas = BACKEND_URL.startsWith('https://');
     const body = {
       items: items.map(item => ({
         id: item.id || String(Math.random()),
@@ -1197,7 +1132,6 @@ const usarURLsCompletas = BACKEND_URL.startsWith('https://');
       }
     };
 
-    // Solo agregar back_urls si NO estamos en localhost
     if (usarURLsCompletas) {
       body.back_urls = {
         success: `${FRONTEND_URL}/pago-exitoso`,
@@ -1210,7 +1144,6 @@ const usarURLsCompletas = BACKEND_URL.startsWith('https://');
       console.log('✅ Usando URLs de retorno (producción/ngrok)');
     } else {
       console.log('⚠️ Modo localhost - sin URLs de retorno');
-      console.log('📌 Después del pago, cierra manualmente la ventana de Mercado Pago');
     }
 
     console.log('🔄 Creando preferencia en Mercado Pago...');
@@ -1239,7 +1172,6 @@ const usarURLsCompletas = BACKEND_URL.startsWith('https://');
   }
 });
 
-// Webhook Mercado Pago
 router.post("/webhook-mercadopago", async (req, res) => {
   try {
     const { type, data } = req.body;
@@ -1259,8 +1191,6 @@ router.post("/webhook-mercadopago", async (req, res) => {
         switch (paymentData.status) {
           case "approved":
             console.log('✅ Pago aprobado! ID:', paymentData.id);
-            // TODO: Aquí puedes vaciar el carrito del usuario
-            // await Cart.findOneAndUpdate({ userId: paymentData.metadata.user_id }, { items: [] });
             break;
           
           case "pending":
@@ -1283,7 +1213,6 @@ router.post("/webhook-mercadopago", async (req, res) => {
   }
 });
 
-// Verificar estado de pago
 router.get("/verificar-pago/:paymentId", verifyToken, async (req, res) => {
   try {
     const { paymentId } = req.params;
@@ -1310,80 +1239,8 @@ router.get("/verificar-pago/:paymentId", verifyToken, async (req, res) => {
   }
 });
 
-
-// Webhook Mercado Pago
-router.post("/webhook-mercadopago", async (req, res) => {
-  try {
-    const { type, data } = req.body;
-
-    console.log('🔔 Webhook recibido de Mercado Pago:', type);
-
-    res.sendStatus(200);
-
-    if (type === "payment") {
-      const paymentId = data.id;
-      
-      try {
-        const payment = new Payment(mercadopagoClient);
-        const paymentData = await payment.get({ id: paymentId });
-
-        console.log('💳 Estado del pago:', paymentData.status);
-        console.log('💰 Monto:', paymentData.transaction_amount, paymentData.currency_id);
-        console.log('👤 Usuario ID:', paymentData.metadata?.user_id);
-
-        switch (paymentData.status) {
-          case "approved":
-            console.log('✅ Pago aprobado!');
-            // TODO: Vaciar carrito, actualizar orden
-            break;
-          
-          case "pending":
-            console.log('⏳ Pago pendiente');
-            break;
-          
-          case "rejected":
-            console.log('❌ Pago rechazado');
-            break;
-        }
-
-      } catch (error) {
-        console.error('❌ Error procesando pago:', error);
-      }
-    }
-
-  } catch (error) {
-    console.error('❌ Error en webhook:', error);
-    res.sendStatus(500);
-  }
-});
-
-// Verificar estado de pago
-// Verificar estado de pago
-router.get("/verificar-pago/:paymentId", verifyToken, async (req, res) => {
-  try {
-    const { paymentId } = req.params;
-    
-    const payment = new Payment(mercadopagoClient);
-    const paymentData = await payment.get({ id: paymentId });
-
-    res.json({
-      status: paymentData.status,
-      status_detail: paymentData.status_detail,
-      amount: paymentData.transaction_amount,
-      currency: paymentData.currency_id,
-      payment_method: paymentData.payment_method_id,
-      date_approved: paymentData.date_approved,
-      external_reference: paymentData.external_reference
-    });
-
-  } catch (error) {
-    console.error('❌ Error verificando pago:', error);
-    res.status(500).json({ error: "Error al verificar pago" });
-  }
-});
-
 /* ======================
-   🛒 RUTAS DEL CARRITO - SIN CAMBIOS
+   🛒 RUTAS DEL CARRITO
    ====================== */
 
 router.get("/cart/:userId", verifyToken, async (req, res) => {
@@ -1598,15 +1455,13 @@ router.put("/cart/quantity", verifyToken, async (req, res) => {
 });
 
 /* ======================
-   📧 RUTAS DE AUTENTICACIÓN ACTUALIZADAS CON VERIFICACIÓN EMAIL
+   📧 RUTAS DE AUTENTICACIÓN
    ====================== */
 
-// 📧 REGISTRO TRADICIONAL CON VERIFICACIÓN POR EMAIL - ACTUALIZADO
 router.post("/register", verificarConfiguracionEmail, async (req, res) => {
   try {
     const { name, email, password, telefono, direccion, role } = req.body;
     
-    // Validaciones básicas
     if (!name || !email || !password || !telefono || !direccion) {
       return res.status(400).json({ 
         error: "Todos los campos son obligatorios",
@@ -1618,37 +1473,31 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
       return res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
     }
 
-    // Validar teléfono
     if (!validarTelefono(telefono)) {
       return res.status(400).json({ error: "El teléfono debe tener un formato válido (7-15 dígitos)" });
     }
 
-    // Validar dirección
     const validacionDireccion = validarDireccion(direccion);
     if (!validacionDireccion.valido) {
       return res.status(400).json({ error: validacionDireccion.mensaje });
     }
 
-    // Verificar si el email ya existe
     const exists = await User.findOne({ email: email.toLowerCase() });
     if (exists) {
       if (exists.emailVerified) {
         return res.status(400).json({ error: "El correo ya está registrado y verificado" });
       } else {
-        // Email existe pero no verificado - eliminar registro anterior
         await User.deleteOne({ _id: exists._id });
         console.log('🗑️ Registro anterior no verificado eliminado para:', email);
       }
     }
 
-    // 📧 GENERAR TOKEN DE VERIFICACIÓN - NUEVO
     const tokenVerificacion = generarTokenVerificacion();
     const expiracionToken = new Date();
-    expiracionToken.setHours(expiracionToken.getHours() + 24); // 24 horas
+    expiracionToken.setHours(expiracionToken.getHours() + 24);
 
     const hashed = await bcrypt.hash(password, 10);
     
-    // 📧 CREAR USUARIO PENDIENTE DE VERIFICACIÓN - ACTUALIZADO
     const nuevoUsuario = new User({ 
       name: name.trim(), 
       email: email.trim().toLowerCase(), 
@@ -1661,7 +1510,6 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
         pais: direccion.pais ? direccion.pais.trim() : 'Colombia'
       },
       role,
-      // 📧 CAMPOS DE VERIFICACIÓN - NUEVO
       emailVerificationToken: tokenVerificacion,
       emailVerificationExpires: expiracionToken,
       emailVerified: false,
@@ -1671,7 +1519,6 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
     await nuevoUsuario.save();
     console.log('📧 Usuario creado pendiente de verificación:', email);
 
-    // 📧 ENVIAR EMAIL DE VERIFICACIÓN CON MEJOR MANEJO DE ERRORES
     const emailEnviado = await enviarEmailVerificacion(email, name, tokenVerificacion);
     
     if (emailEnviado.success) {
@@ -1680,10 +1527,9 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
         requiereVerificacion: true,
         email: email,
         instrucciones: "Hemos enviado un email de verificación a tu correo. Por favor, revisa tu bandeja de entrada y spam, luego haz clic en el enlace para activar tu cuenta.",
-        messageId: emailEnviado.messageId // Para debugging
+        messageId: emailEnviado.messageId
       });
     } else {
-      // Si falla el envío del email, eliminar el usuario creado
       await User.deleteOne({ _id: nuevoUsuario._id });
       
       console.error('❌ Error enviando email de verificación:', emailEnviado.error);
@@ -1709,14 +1555,12 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
   }
 });
 
-// 📧 RUTA PARA VERIFICAR EMAIL MEJORADA - NUEVO
 router.get("/verify-email/:token", async (req, res) => {
   try {
     const { token } = req.params;
     
     console.log('🔍 Verificando token:', token);
 
-    // Validar formato del token
     if (!token || !/^[a-f0-9]{64}$/.test(token)) {
       return res.status(400).json({ 
         error: "Token inválido",
@@ -1725,10 +1569,9 @@ router.get("/verify-email/:token", async (req, res) => {
       });
     }
 
-    // Buscar usuario con el token
     const usuario = await User.findOne({
       emailVerificationToken: token,
-      emailVerificationExpires: { $gt: new Date() }, // Token no expirado
+      emailVerificationExpires: { $gt: new Date() },
       emailVerified: false
     });
 
@@ -1740,7 +1583,6 @@ router.get("/verify-email/:token", async (req, res) => {
       });
     }
 
-    // Activar usuario
     usuario.emailVerified = true;
     usuario.pendingActivation = false;
     usuario.emailVerificationToken = undefined;
@@ -1770,7 +1612,6 @@ router.get("/verify-email/:token", async (req, res) => {
   }
 });
 
-// 📧 REENVIAR VERIFICACIÓN CON MIDDLEWARE - ACTUALIZADO
 router.post("/resend-verification", verificarConfiguracionEmail, async (req, res) => {
   try {
     const { email } = req.body;
@@ -1779,7 +1620,6 @@ router.post("/resend-verification", verificarConfiguracionEmail, async (req, res
       return res.status(400).json({ error: "Email es requerido" });
     }
 
-    // Verificar rate limiting
     if (!checkEmailRateLimit(email)) {
       return res.status(429).json({ 
         error: "Debes esperar 1 minuto antes de solicitar otro email",
@@ -1788,7 +1628,6 @@ router.post("/resend-verification", verificarConfiguracionEmail, async (req, res
       });
     }
 
-    // Buscar usuario no verificado
     const usuario = await User.findOne({
       email: email.toLowerCase(),
       emailVerified: false,
@@ -1802,7 +1641,6 @@ router.post("/resend-verification", verificarConfiguracionEmail, async (req, res
       });
     }
 
-    // Generar nuevo token
     const nuevoToken = generarTokenVerificacion();
     const nuevaExpiracion = new Date();
     nuevaExpiracion.setHours(nuevaExpiracion.getHours() + 24);
@@ -1811,7 +1649,6 @@ router.post("/resend-verification", verificarConfiguracionEmail, async (req, res
     usuario.emailVerificationExpires = nuevaExpiracion;
     await usuario.save();
 
-    // Reenviar email
     const emailEnviado = await enviarEmailVerificacion(email, usuario.name, nuevoToken);
     
     if (emailEnviado.success) {
@@ -1838,7 +1675,6 @@ router.post("/resend-verification", verificarConfiguracionEmail, async (req, res
   }
 });
 
-// 📧 LOGIN ACTUALIZADO PARA VERIFICAR EMAIL - MODIFICADO
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -1850,7 +1686,6 @@ router.post("/login", async (req, res) => {
     const u = await User.findOne({ email: email.toLowerCase() });
     if (!u) return res.status(400).json({ error: "Usuario no encontrado" });
 
-    // 📧 VERIFICAR SI EL EMAIL ESTÁ VERIFICADO (solo para usuarios locales) - NUEVO
     if (!u.googleId && !u.emailVerified) {
       return res.status(403).json({ 
         error: "Debes verificar tu email antes de iniciar sesión",
@@ -1886,7 +1721,6 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// 📧 ENDPOINT PARA VERIFICAR ESTADO DEL SERVICIO DE EMAIL - NUEVO
 router.get("/email/status", verifyToken, isAdmin, (req, res) => {
   const status = {
     configured: !!transporter,
@@ -1916,10 +1750,9 @@ router.get("/email/status", verifyToken, isAdmin, (req, res) => {
 });
 
 /* ======================
-   GOOGLE OAUTH ROUTES - MEJORADAS CON VERIFICACIÓN
+   GOOGLE OAUTH ROUTES
    ====================== */
 
-// Ruta para autenticación con Google - MEJORADA
 router.post("/auth/google", async (req, res) => {
   try {
     const { credential, userData } = req.body;
@@ -1930,11 +1763,9 @@ router.post("/auth/google", async (req, res) => {
       return res.status(400).json({ error: "Token de Google requerido" });
     }
 
-    // Verificar el token con Google
     const googleUser = await verifyGoogleToken(credential);
     console.log('✅ Usuario de Google verificado:', googleUser.email);
 
-    // Buscar usuario existente por email o googleId
     let usuario = await User.findOne({ 
       $or: [
         { email: googleUser.email.toLowerCase() },
@@ -1943,15 +1774,12 @@ router.post("/auth/google", async (req, res) => {
     });
 
     if (usuario) {
-      // Usuario existente - hacer login
       console.log('👤 Usuario existente encontrado, iniciando sesión...');
       
-      // Actualizar datos de Google si no los tiene
       if (!usuario.googleId) {
         usuario.googleId = googleUser.googleId;
         usuario.profilePicture = googleUser.picture;
         usuario.authMethod = 'both';
-        // 📧 PARA USUARIOS DE GOOGLE, EL EMAIL YA ESTÁ VERIFICADO - NUEVO
         usuario.emailVerified = true;
         usuario.pendingActivation = false;
         await usuario.save();
@@ -1970,7 +1798,7 @@ router.post("/auth/google", async (req, res) => {
           role: usuario.role,
           profilePicture: usuario.profilePicture || googleUser.picture,
           authMethod: usuario.googleId ? 'both' : 'google',
-          emailVerified: true // 📧 GOOGLE EMAILS SIEMPRE ESTÁN VERIFICADOS
+          emailVerified: true
         },
         token,
         redirectTo: usuario.role === "admin" ? "/admin" : "/home",
@@ -1978,10 +1806,8 @@ router.post("/auth/google", async (req, res) => {
       });
 
     } else {
-      // Usuario nuevo - necesita completar registro
       console.log('🆕 Usuario nuevo de Google, requiere datos adicionales...');
       
-      // Verificar si se proporcionaron datos adicionales
       if (!userData || !userData.telefono || !userData.direccion) {
         return res.json({
           requiresAdditionalInfo: true,
@@ -1995,7 +1821,6 @@ router.post("/auth/google", async (req, res) => {
         });
       }
 
-      // Validar datos adicionales
       if (!validarTelefono(userData.telefono)) {
         return res.status(400).json({ 
           error: "El teléfono debe tener un formato válido (7-15 dígitos)" 
@@ -2007,7 +1832,6 @@ router.post("/auth/google", async (req, res) => {
         return res.status(400).json({ error: validacionDireccion.mensaje });
       }
 
-      // Crear nuevo usuario
       const hashedPassword = await bcrypt.hash("google_oauth_" + googleUser.googleId, 10);
       
       const nuevoUsuario = new User({
@@ -2025,7 +1849,6 @@ router.post("/auth/google", async (req, res) => {
         profilePicture: googleUser.picture,
         authMethod: 'google',
         role: "user",
-        // 📧 PARA USUARIOS DE GOOGLE, EL EMAIL YA ESTÁ VERIFICADO - NUEVO
         emailVerified: true,
         pendingActivation: false
       });
@@ -2045,7 +1868,7 @@ router.post("/auth/google", async (req, res) => {
           role: nuevoUsuario.role,
           profilePicture: nuevoUsuario.profilePicture,
           authMethod: 'google',
-          emailVerified: true // 📧 GOOGLE EMAILS SIEMPRE ESTÁN VERIFICADOS
+          emailVerified: true
         },
         token,
         redirectTo: "/home",
@@ -2071,7 +1894,6 @@ router.post("/auth/google", async (req, res) => {
   }
 });
 
-// Ruta para vincular cuenta de Google (usuario ya logueado)
 router.post("/auth/google/link", verifyToken, async (req, res) => {
   try {
     const { credential } = req.body;
@@ -2087,14 +1909,12 @@ router.post("/auth/google/link", verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Usuario no encontrado" });
     }
 
-    // Verificar que el email coincida
     if (googleUser.email.toLowerCase() !== usuario.email.toLowerCase()) {
       return res.status(400).json({ 
         error: "El email de Google debe coincidir con el email de tu cuenta" 
       });
     }
 
-    // Vincular cuenta
     usuario.googleId = googleUser.googleId;
     usuario.profilePicture = googleUser.picture;
     await usuario.save();
@@ -2116,7 +1936,6 @@ router.post("/auth/google/link", verifyToken, async (req, res) => {
   }
 });
 
-// Ruta para desvincular Google
 router.delete("/auth/google/unlink", verifyToken, async (req, res) => {
   try {
     const usuario = await User.findById(req.user.id);
@@ -2151,7 +1970,6 @@ router.get("/auth/me", verifyToken, async (req, res) => {
   }
 });
 
-// RUTA PARA ACTUALIZAR PERFIL DE USUARIO
 router.put("/usuarios/perfil", verifyToken, async (req, res) => {
   try {
     const { name, telefono, direccion } = req.body;
@@ -2161,7 +1979,6 @@ router.put("/usuarios/perfil", verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Usuario no encontrado" });
     }
 
-    // Validar campos si se proporcionan
     if (telefono && !validarTelefono(telefono)) {
       return res.status(400).json({ error: "El teléfono debe tener un formato válido" });
     }
@@ -2173,7 +1990,6 @@ router.put("/usuarios/perfil", verifyToken, async (req, res) => {
       }
     }
 
-    // Actualizar campos
     if (name && name.trim()) usuario.name = name.trim();
     if (telefono) usuario.telefono = telefono.trim();
     if (direccion) {
@@ -2206,7 +2022,7 @@ router.put("/usuarios/perfil", verifyToken, async (req, res) => {
 });
 
 /* ======================
-   USUARIOS & MASCOTAS ACTUALIZADOS
+   USUARIOS & MASCOTAS
    ====================== */
 router.get("/usuarios", verifyToken, isAdmin, async (req, res) => {
   try {
@@ -2248,13 +2064,12 @@ router.get("/usuarios/:id/mascotas", verifyToken, async (req, res) => {
 });
 
 /* ======================
-   Mascotas
+   MASCOTAS
    ====================== */
 router.post("/mascotas", verifyToken, uploadMascota.single("imagen"), async (req, res) => {
   try {
     const { nombre, especie, raza, edad, genero, estado, enfermedades, historial } = req.body;
 
-    // Validaciones obligatorias
     if (!nombre || !especie || !raza || !edad || !genero || !estado) {
       const faltantes = [];
       if (!nombre) faltantes.push("nombre");
@@ -2288,12 +2103,12 @@ router.post("/mascotas", verifyToken, uploadMascota.single("imagen"), async (req
       estado: estado.trim(),
       enfermedades: enfermedades ? enfermedades.trim() : "",
       historial: historial ? historial.trim() : "",
-      imagen: req.file ? req.file.path : "", // 📸 Cloudinary devuelve la URL en file.path
+      imagen: req.file ? `/uploads/${req.file.filename}` : "",
       usuario: req.user.id,
     });
 
     await nuevaMascota.save();
-    console.log('✅ Mascota registrada:', nuevaMascota.nombre, '📸 Imagen Cloudinary:', nuevaMascota.imagen);
+    console.log('✅ Mascota registrada:', nuevaMascota.nombre);
     res.status(201).json({ msg: "Mascota registrada", mascota: nuevaMascota });
   } catch (err) {
     console.error("Error creando mascota:", err);
@@ -2312,10 +2127,13 @@ router.get("/mascotas", verifyToken, async (req, res) => {
     const mascotas = await Mascota.find({ usuario: req.user.id }).populate("usuario", "name email telefono");
     console.log('📋 Mascotas encontradas:', mascotas.length);
 
-    // 📸 Las URLs de Cloudinary ya vienen completas, no necesitan transformación
     const mascotasConImagen = mascotas.map((m) => ({
       ...m.toObject(),
-      imagen: m.imagen || null, // URL de Cloudinary directa
+      imagen: m.imagen 
+        ? m.imagen.startsWith("http") 
+          ? m.imagen 
+          : `${req.protocol}://${req.get("host")}${m.imagen}`
+        : null,
     }));
 
     res.json(mascotasConImagen);
@@ -2338,7 +2156,6 @@ router.put("/mascotas/:id", verifyToken, uploadMascota.single("imagen"), async (
 
     const { nombre, especie, raza, edad, genero, estado, enfermedades, historial } = req.body;
 
-    // Validar campos obligatorios si se proporcionan
     if (edad !== undefined) {
       const edadNum = parseInt(edad);
       if (isNaN(edadNum) || edadNum < 0 || edadNum > 15) {
@@ -2351,7 +2168,6 @@ router.put("/mascotas/:id", verifyToken, uploadMascota.single("imagen"), async (
       return res.status(400).json({ error: "El género debe ser 'Macho' o 'Hembra'" });
     }
 
-    // Actualizar solo campos no vacíos
     if (nombre && nombre.trim()) mascota.nombre = nombre.trim();
     if (especie && especie.trim()) mascota.especie = especie.trim();
     if (raza && raza.trim()) mascota.raza = raza.trim();
@@ -2361,23 +2177,7 @@ router.put("/mascotas/:id", verifyToken, uploadMascota.single("imagen"), async (
     if (historial !== undefined) mascota.historial = historial.trim();
 
     if (req.file) {
-      // 📸 Eliminar imagen anterior de Cloudinary si existe
-      if (mascota.imagen && mascota.imagen.includes('cloudinary.com')) {
-        try {
-          const urlParts = mascota.imagen.split('/');
-          const uploadIndex = urlParts.indexOf('upload');
-          if (uploadIndex !== -1) {
-            const publicIdWithExtension = urlParts.slice(uploadIndex + 2).join('/');
-            const publicId = publicIdWithExtension.substring(0, publicIdWithExtension.lastIndexOf('.'));
-            await cloudinary.uploader.destroy(publicId);
-            console.log('🗑️ Imagen anterior eliminada de Cloudinary:', publicId);
-          }
-        } catch (error) {
-          console.log('⚠️ Error eliminando imagen anterior de Cloudinary:', error.message);
-        }
-      }
-      mascota.imagen = req.file.path; // 📸 Nueva URL de Cloudinary
-      console.log('✅ Nueva imagen subida a Cloudinary:', req.file.path);
+      mascota.imagen = `/uploads/${req.file.filename}`;
     }
 
     await mascota.save();
@@ -2410,10 +2210,13 @@ router.get("/mascotas/:id", verifyToken, async (req, res) => {
       });
     }
 
-    // 📸 URL de Cloudinary viene completa
     const mascotaConImagen = {
       ...mascota.toObject(),
-      imagen: mascota.imagen || null,
+      imagen: mascota.imagen 
+        ? mascota.imagen.startsWith("http") 
+          ? mascota.imagen 
+          : `${req.protocol}://${req.get("host")}${mascota.imagen}`
+        : null,
     };
 
     res.json(mascotaConImagen);
@@ -2423,13 +2226,11 @@ router.get("/mascotas/:id", verifyToken, async (req, res) => {
   }
 });
 
-// Agregar vacuna a mascota
 router.post("/mascotas/:id/vacunas", verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre, fecha, imagen } = req.body;
 
-    // Validaciones
     if (!nombre || !fecha) {
       return res.status(400).json({ error: "Nombre y fecha de la vacuna son obligatorios" });
     }
@@ -2441,12 +2242,10 @@ router.post("/mascotas/:id/vacunas", verifyToken, async (req, res) => {
     const mascota = await Mascota.findById(id);
     if (!mascota) return res.status(404).json({ msg: "Mascota no encontrada" });
 
-    // Verificar permisos: admin o dueño
     if (req.user.role !== "admin" && mascota.usuario.toString() !== req.user.id) {
       return res.status(403).json({ error: "No autorizado para agregar vacunas a esta mascota" });
     }
 
-    // Agregar vacuna al array
     mascota.vacunas.push({
       nombre: nombre.trim(),
       fecha: new Date(fecha),
@@ -2462,13 +2261,11 @@ router.post("/mascotas/:id/vacunas", verifyToken, async (req, res) => {
   }
 });
 
-// Agregar operación a mascota
 router.post("/mascotas/:id/operaciones", verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre, descripcion, fecha, imagen } = req.body;
 
-    // Validaciones
     if (!nombre || !descripcion || !fecha) {
       return res.status(400).json({ error: "Nombre, descripción y fecha de la operación son obligatorios" });
     }
@@ -2480,12 +2277,10 @@ router.post("/mascotas/:id/operaciones", verifyToken, async (req, res) => {
     const mascota = await Mascota.findById(id);
     if (!mascota) return res.status(404).json({ msg: "Mascota no encontrada" });
 
-    // Verificar permisos: admin o dueño
     if (req.user.role !== "admin" && mascota.usuario.toString() !== req.user.id) {
       return res.status(403).json({ error: "No autorizado para agregar operaciones a esta mascota" });
     }
 
-    // Agregar operación al array
     mascota.operaciones.push({
       nombre: nombre.trim(),
       descripcion: descripcion.trim(),
@@ -2502,13 +2297,11 @@ router.post("/mascotas/:id/operaciones", verifyToken, async (req, res) => {
   }
 });
 
-// Eliminar mascota
 router.delete("/mascotas/:id", verifyToken, async (req, res) => {
   try {
     const mascota = await Mascota.findById(req.params.id);
     if (!mascota) return res.status(404).json({ error: "Mascota no encontrada" });
 
-    // Validar permisos: admin o dueño
     if (req.user.role !== "admin" && mascota.usuario.toString() !== req.user.id) {
       return res.status(403).json({ error: "No autorizado para eliminar esta mascota" });
     }
@@ -2525,20 +2318,17 @@ router.delete("/mascotas/:id", verifyToken, async (req, res) => {
    RUTAS DE CITAS
    ====================== */
 
-// Crear nueva cita
 router.post("/citas", verifyToken, async (req, res) => {
   try {
     console.log('📅 Creando nueva cita:', req.body);
     const { mascotaId, tipo, fecha, hora, motivo, notas } = req.body;
 
-    // Validaciones obligatorias
     if (!mascotaId || !tipo || !fecha || !hora || !motivo) {
       return res.status(400).json({ 
         error: "Los campos mascota, tipo, fecha, hora y motivo son obligatorios" 
       });
     }
 
-    // Validar que la mascota existe y pertenece al usuario
     const mascota = await Mascota.findById(mascotaId);
     if (!mascota) {
       return res.status(404).json({ error: "Mascota no encontrada" });
@@ -2548,21 +2338,18 @@ router.post("/citas", verifyToken, async (req, res) => {
       return res.status(403).json({ error: "No autorizado para agendar cita para esta mascota" });
     }
 
-    // Validar fecha
     if (!esFechaValida(fecha)) {
       return res.status(400).json({ 
         error: "Fecha inválida. No se pueden agendar citas en el pasado o los domingos" 
       });
     }
 
-    // Validar horario
     if (!esHorarioValido(hora)) {
       return res.status(400).json({ 
         error: "Horario inválido. Los horarios de atención son: 7:00AM-12:00PM y 2:00PM-6:00PM" 
       });
     }
 
-    // Verificar disponibilidad
     const fechaNormalizada = normalizarFecha(fecha);
     const citaExistente = await Cita.findOne({ 
       fecha: fechaNormalizada, 
@@ -2575,7 +2362,6 @@ router.post("/citas", verifyToken, async (req, res) => {
       });
     }
 
-    // Crear la cita
     const nuevaCita = new Cita({
       mascota: mascotaId,
       usuario: req.user.id,
@@ -2589,7 +2375,6 @@ router.post("/citas", verifyToken, async (req, res) => {
     await nuevaCita.save();
     console.log('✅ Cita creada exitosamente:', nuevaCita._id, 'para mascota:', mascota.nombre);
     
-    // Poblar los datos para la respuesta
     await nuevaCita.populate([
       { path: 'mascota', select: 'nombre especie raza' },
       { path: 'usuario', select: 'name email telefono' }
