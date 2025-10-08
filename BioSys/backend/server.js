@@ -184,9 +184,72 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-const uploadsDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-app.use("/uploads", express.static(uploadsDir));
+/* ======================
+   📸 CONFIGURACIÓN DE ALMACENAMIENTO EN FRONTEND
+   ====================== */
+
+// 🎯 RUTA A LA CARPETA PUBLIC DEL FRONTEND
+// Ajusta esta ruta según tu estructura de carpetas
+const FRONTEND_UPLOADS_PATH = path.join(__dirname, "..", "frontend", "public", "uploads");
+
+console.log('📂 Ruta configurada para uploads:', FRONTEND_UPLOADS_PATH);
+
+// Crear carpeta si no existe
+if (!fs.existsSync(FRONTEND_UPLOADS_PATH)) {
+  fs.mkdirSync(FRONTEND_UPLOADS_PATH, { recursive: true });
+  console.log('✅ Carpeta uploads creada en frontend/public/uploads');
+} else {
+  console.log('✅ Carpeta uploads ya existe en frontend/public/uploads');
+}
+
+// 📸 CONFIGURACIÓN DE MULTER PARA GUARDAR EN FRONTEND
+const frontendStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    // Verificar que la carpeta existe
+    if (!fs.existsSync(FRONTEND_UPLOADS_PATH)) {
+      fs.mkdirSync(FRONTEND_UPLOADS_PATH, { recursive: true });
+      console.log('📁 Carpeta uploads creada en frontend');
+    }
+    cb(null, FRONTEND_UPLOADS_PATH);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.originalname);
+    const filename = file.fieldname + '-' + uniqueSuffix + extension;
+    console.log('💾 Guardando archivo:', filename);
+    cb(null, filename);
+  }
+});
+
+const uploadMascota = multer({ 
+  storage: frontendStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos de imagen'), false);
+    }
+  }
+});
+
+const uploadProducto = multer({ 
+  storage: frontendStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos de imagen'), false);
+    }
+  }
+});
+
+const upload = uploadMascota;
+
+console.log('✅ Multer configurado para guardar en FRONTEND');
+console.log('📁 Ruta de uploads:', FRONTEND_UPLOADS_PATH);
+console.log('🌐 Las imágenes se accederán desde: /uploads/nombre-archivo.jpg');
 
 /* ======================
    Conexión a MongoDB Atlas
@@ -705,55 +768,6 @@ const isAdmin = (req, res, next) => {
     return res.status(403).json({ error: "No tienes permisos de administrador" });
   next();
 };
-
-/* ======================
-   📸 CONFIGURACIÓN DE ALMACENAMIENTO LOCAL (FUNCIONARÁ SIEMPRE)
-   ====================== */
-
-const localStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, "uploads");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-      console.log('📁 Carpeta uploads creada');
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const extension = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + extension);
-  }
-});
-
-const uploadMascota = multer({ 
-  storage: localStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Solo se permiten archivos de imagen'), false);
-    }
-  }
-});
-
-const uploadProducto = multer({ 
-  storage: localStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Solo se permiten archivos de imagen'), false);
-    }
-  }
-});
-
-const upload = uploadMascota;
-
-console.log('✅ Multer configurado con almacenamiento LOCAL');
-console.log('📁 Carpeta de uploads:', path.join(__dirname, "uploads"));
 
 /* ======================
    FUNCIONES DE UTILIDAD
@@ -2094,6 +2108,8 @@ router.post("/mascotas", verifyToken, uploadMascota.single("imagen"), async (req
       return res.status(400).json({ error: "El género debe ser 'Macho' o 'Hembra'" });
     }
 
+    // 🎯 La imagen ahora se guarda en frontend/public/uploads
+    // Se accede con la ruta relativa desde el frontend
     const nuevaMascota = new Mascota({
       nombre: nombre.trim(),
       especie: especie.trim(),
@@ -2109,6 +2125,7 @@ router.post("/mascotas", verifyToken, uploadMascota.single("imagen"), async (req
 
     await nuevaMascota.save();
     console.log('✅ Mascota registrada:', nuevaMascota.nombre);
+    console.log('📸 Imagen guardada en:', FRONTEND_UPLOADS_PATH);
     res.status(201).json({ msg: "Mascota registrada", mascota: nuevaMascota });
   } catch (err) {
     console.error("Error creando mascota:", err);
@@ -2127,13 +2144,11 @@ router.get("/mascotas", verifyToken, async (req, res) => {
     const mascotas = await Mascota.find({ usuario: req.user.id }).populate("usuario", "name email telefono");
     console.log('📋 Mascotas encontradas:', mascotas.length);
 
+    // 🌐 Las imágenes ya están con la ruta correcta /uploads/nombre-archivo.jpg
+    // El frontend las accederá directamente desde su carpeta public
     const mascotasConImagen = mascotas.map((m) => ({
       ...m.toObject(),
-      imagen: m.imagen 
-        ? m.imagen.startsWith("http") 
-          ? m.imagen 
-          : `${req.protocol}://${req.get("host")}${m.imagen}`
-        : null,
+      imagen: m.imagen || null,
     }));
 
     res.json(mascotasConImagen);
@@ -2177,7 +2192,16 @@ router.put("/mascotas/:id", verifyToken, uploadMascota.single("imagen"), async (
     if (historial !== undefined) mascota.historial = historial.trim();
 
     if (req.file) {
+      // 🎯 Eliminar imagen anterior si existe
+      if (mascota.imagen && mascota.imagen.startsWith('/uploads/')) {
+        const oldImagePath = path.join(FRONTEND_UPLOADS_PATH, path.basename(mascota.imagen));
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlinkSync(oldImagePath);
+          console.log('🗑️ Imagen anterior eliminada:', oldImagePath);
+        }
+      }
       mascota.imagen = `/uploads/${req.file.filename}`;
+      console.log('📸 Nueva imagen guardada:', req.file.filename);
     }
 
     await mascota.save();
@@ -2212,11 +2236,7 @@ router.get("/mascotas/:id", verifyToken, async (req, res) => {
 
     const mascotaConImagen = {
       ...mascota.toObject(),
-      imagen: mascota.imagen 
-        ? mascota.imagen.startsWith("http") 
-          ? mascota.imagen 
-          : `${req.protocol}://${req.get("host")}${mascota.imagen}`
-        : null,
+      imagen: mascota.imagen || null,
     };
 
     res.json(mascotaConImagen);
@@ -2304,6 +2324,15 @@ router.delete("/mascotas/:id", verifyToken, async (req, res) => {
 
     if (req.user.role !== "admin" && mascota.usuario.toString() !== req.user.id) {
       return res.status(403).json({ error: "No autorizado para eliminar esta mascota" });
+    }
+
+    // 🗑️ Eliminar imagen si existe
+    if (mascota.imagen && mascota.imagen.startsWith('/uploads/')) {
+      const imagePath = path.join(FRONTEND_UPLOADS_PATH, path.basename(mascota.imagen));
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+        console.log('🗑️ Imagen eliminada:', imagePath);
+      }
     }
 
     await mascota.deleteOne();
@@ -2405,7 +2434,6 @@ router.get("/citas", verifyToken, async (req, res) => {
     console.log('📋 Obteniendo citas para usuario:', req.user.id);
     let query = {};
     
-    // Si no es admin, solo puede ver sus propias citas
     if (req.user.role !== "admin") {
       query.usuario = req.user.id;
     }
@@ -2435,14 +2463,12 @@ router.get("/citas/horarios-disponibles/:fecha", verifyToken, async (req, res) =
       });
     }
 
-    // Buscar citas existentes
     const fechaNormalizada = normalizarFecha(fecha);
     const citasExistentes = await Cita.find({ fecha: fechaNormalizada }).select('hora');
     const horasOcupadas = citasExistentes.map(cita => cita.hora);
     
     console.log('⏰ Horas ocupadas para', fecha + ':', horasOcupadas);
 
-    // Generar horarios disponibles
     const horariosDisponibles = [];
     
     // Horarios de la mañana (7:00 AM - 12:00 PM)
@@ -2459,7 +2485,6 @@ router.get("/citas/horarios-disponibles/:fecha", verifyToken, async (req, res) =
       }
     }
 
-    // Agregar 12:00 PM
     if (!horasOcupadas.includes('12:00')) {
       horariosDisponibles.push({
         hora: '12:00',
@@ -2482,7 +2507,6 @@ router.get("/citas/horarios-disponibles/:fecha", verifyToken, async (req, res) =
       }
     }
 
-    // Agregar 6:00 PM
     if (!horasOcupadas.includes('18:00')) {
       horariosDisponibles.push({
         hora: '18:00',
@@ -2548,12 +2572,10 @@ router.delete("/citas/:id", verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Cita no encontrada" });
     }
 
-    // Solo el dueño de la cita o admin puede cancelarla
     if (req.user.role !== "admin" && cita.usuario.toString() !== req.user.id) {
       return res.status(403).json({ error: "No autorizado para cancelar esta cita" });
     }
 
-    // Verificar que la cita no esté ya completada
     if (cita.estado === "completada") {
       return res.status(400).json({ error: "No se puede cancelar una cita completada" });
     }
@@ -2572,7 +2594,6 @@ router.delete("/citas/:id", verifyToken, async (req, res) => {
    📡 RUTAS DE API PARA MANTENIMIENTO AUTOMÁTICO DE CITAS
    ====================== */
 
-// Ruta para ejecutar mantenimiento manual (solo admin)
 router.post("/admin/citas/mantenimiento", verifyToken, isAdmin, async (req, res) => {
   try {
     console.log('🔧 Mantenimiento manual solicitado por admin:', req.user.id);
@@ -2592,7 +2613,6 @@ router.post("/admin/citas/mantenimiento", verifyToken, isAdmin, async (req, res)
   }
 });
 
-// Ruta para obtener estadísticas de mantenimiento (solo admin)
 router.get("/admin/citas/estadisticas-mantenimiento", verifyToken, isAdmin, async (req, res) => {
   try {
     const estadisticas = await obtenerEstadisticasCitas();
@@ -2609,7 +2629,6 @@ router.get("/admin/citas/estadisticas-mantenimiento", verifyToken, isAdmin, asyn
   }
 });
 
-// Ruta para obtener configuración del sistema automático (solo admin)
 router.get("/admin/citas/config-automatico", verifyToken, isAdmin, (req, res) => {
   res.json({
     activo: intervalId !== null,
@@ -2624,10 +2643,9 @@ router.get("/admin/citas/config-automatico", verifyToken, isAdmin, (req, res) =>
   });
 });
 
-// Ruta para controlar el sistema automático (solo admin)
 router.post("/admin/citas/toggle-automatico", verifyToken, isAdmin, (req, res) => {
   try {
-    const { accion } = req.body; // 'iniciar' o 'detener'
+    const { accion } = req.body;
     
     if (accion === 'iniciar') {
       if (intervalId) {
@@ -2666,7 +2684,6 @@ router.get("/admin/dashboard", verifyToken, isAdmin, async (req, res) => {
       Cart.countDocuments(),
     ]);
 
-    // Estadísticas adicionales de citas
     const citasPorEstado = await Cita.aggregate([
       {
         $group: {
@@ -2683,12 +2700,10 @@ router.get("/admin/dashboard", verifyToken, isAdmin, async (req, res) => {
       }
     });
 
-    // Estadísticas de productos
     const productosConDescuento = await Producto.countDocuments({ "descuento.tiene": true });
     const productosConGarantia = await Producto.countDocuments({ "garantia.tiene": true });
     const productosEnvioGratis = await Producto.countDocuments({ envioGratis: true });
 
-    // Estadísticas de carritos
     const carritoStats = await Cart.aggregate([
       {
         $group: {
@@ -2726,7 +2741,7 @@ router.get("/admin/dashboard", verifyToken, isAdmin, async (req, res) => {
 });
 
 /* ======================
-   PRODUCTOS ACTUALIZADOS CON NUEVOS CAMPOS
+   PRODUCTOS
    ====================== */
 router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (req, res) => {
   try {
@@ -2738,10 +2753,9 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
         originalname: req.file.originalname,
         mimetype: req.file.mimetype,
         size: req.file.size,
-        path: req.file.path
+        filename: req.file.filename
       });
     }
-    console.log('📝 Body recibido:', Object.keys(req.body));
     
     const { 
       nombre, descripcion, precio, categoria, stock,
@@ -2750,7 +2764,6 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
       envioGratis
     } = req.body;
 
-    // Validaciones básicas
     if (!nombre || !descripcion || !precio) {
       return res.status(400).json({ 
         error: "Nombre, descripción y precio son obligatorios" 
@@ -2759,7 +2772,6 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
 
     console.log('✅ Validaciones básicas pasadas');
 
-    // Preparar objeto de producto
     const datosProducto = {
       nombre: nombre?.trim(),
       descripcion: descripcion?.trim(),
@@ -2780,13 +2792,6 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
       }
     };
 
-    console.log('📋 Datos del producto preparados:', {
-      nombre: datosProducto.nombre,
-      precio: datosProducto.precio,
-      categoria: datosProducto.categoria
-    });
-
-    // Validar datos del producto
     const validacion = validarProducto(datosProducto);
     if (!validacion.valido) {
       console.error('❌ Validación fallida:', validacion.mensaje);
@@ -2795,24 +2800,10 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
 
     console.log('✅ Validación de producto exitosa');
 
-    // Preparar imagen
-    let imagenUrl = "";
-    if (req.file) {
-      // Si usamos Cloudinary, req.file.path ya tiene la URL completa
-      if (req.file.path && req.file.path.includes('cloudinary.com')) {
-        imagenUrl = req.file.path;
-        console.log('📸 Imagen subida a Cloudinary:', imagenUrl);
-      } 
-      // Si usamos almacenamiento local
-      else if (req.file.filename) {
-        imagenUrl = `/uploads/${req.file.filename}`;
-        console.log('💾 Imagen guardada localmente:', imagenUrl);
-      }
-    }
-
+    // 🎯 La imagen se guarda en frontend/public/uploads
     const nuevoProducto = new Producto({
       ...datosProducto,
-      imagen: imagenUrl,
+      imagen: req.file ? `/uploads/${req.file.filename}` : "",
       usuario: req.user.id,
     });
 
@@ -2820,6 +2811,7 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
     await nuevoProducto.save();
     
     console.log('✅ Producto creado exitosamente:', nuevoProducto._id);
+    console.log('📸 Imagen guardada en:', FRONTEND_UPLOADS_PATH);
     
     res.status(201).json({ 
       msg: "Producto creado exitosamente", 
@@ -2855,20 +2847,35 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
     }
   }
 });
+
+router.get("/productos", async (req, res) => {
+  try {
+    const productos = await Producto.find({ activo: true }).populate("usuario", "name email");
+    
+    const productosConDescuento = productos.map(producto => {
+      const productoObj = producto.toObject();
+      productoObj.precioConDescuento = producto.getPrecioConDescuento();
+      productoObj.descuentoVigente = producto.isDescuentoVigente();
+      productoObj.ahorroDescuento = productoObj.precio - productoObj.precioConDescuento;
+      return productoObj;
+    });
+    
+    res.json(productosConDescuento);
+  } catch (err) {
+    console.error("❌ Error listando productos:", err);
+    res.status(500).json({ msg: "Error al listar productos", error: err.message });
+  }
+});
+
 router.get("/productos/:id", async (req, res) => {
   try {
     const producto = await Producto.findById(req.params.id).populate("usuario", "name email telefono");
     if (!producto) return res.status(404).json({ error: "Producto no encontrado" });
     
     const productoObj = producto.toObject();
-    
-    // Agregar información calculada
     productoObj.precioConDescuento = producto.getPrecioConDescuento();
     productoObj.descuentoVigente = producto.isDescuentoVigente();
     productoObj.ahorroDescuento = productoObj.precio - productoObj.precioConDescuento;
-    
-    // 📸 URL de Cloudinary directa
-    productoObj.imagen = producto.imagen || null;
     
     res.json(productoObj);
   } catch (err) {
@@ -2876,9 +2883,6 @@ router.get("/productos/:id", async (req, res) => {
     res.status(500).json({ msg: "Error al obtener producto", error: err.message });
   }
 });
-
-// Actualizar producto
-
 
 router.put("/productos/:id", verifyToken, uploadProducto.single("imagen"), async (req, res) => {
   try {
@@ -2896,7 +2900,6 @@ router.put("/productos/:id", verifyToken, uploadProducto.single("imagen"), async
       envioGratis, activo
     } = req.body;
 
-    // Actualizar campos básicos
     if (nombre && nombre.trim()) producto.nombre = nombre.trim();
     if (descripcion && descripcion.trim()) producto.descripcion = descripcion.trim();
     if (precio !== undefined) producto.precio = parseFloat(precio);
@@ -2905,7 +2908,6 @@ router.put("/productos/:id", verifyToken, uploadProducto.single("imagen"), async
     if (envioGratis !== undefined) producto.envioGratis = envioGratis === 'true' || envioGratis === true;
     if (activo !== undefined) producto.activo = activo === 'true' || activo === true;
 
-    // Actualizar descuento
     if (tieneDescuento !== undefined) {
       producto.descuento.tiene = tieneDescuento === 'true' || tieneDescuento === true;
       if (producto.descuento.tiene) {
@@ -2919,7 +2921,6 @@ router.put("/productos/:id", verifyToken, uploadProducto.single("imagen"), async
       }
     }
 
-    // Actualizar garantía
     if (tieneGarantia !== undefined) {
       producto.garantia.tiene = tieneGarantia === 'true' || tieneGarantia === true;
       if (producto.garantia.tiene) {
@@ -2931,28 +2932,19 @@ router.put("/productos/:id", verifyToken, uploadProducto.single("imagen"), async
       }
     }
 
-    // 📸 Actualizar imagen si se proporciona
     if (req.file) {
-      // Eliminar imagen anterior de Cloudinary
-      if (producto.imagen && producto.imagen.includes('cloudinary.com')) {
-        try {
-          const urlParts = producto.imagen.split('/');
-          const uploadIndex = urlParts.indexOf('upload');
-          if (uploadIndex !== -1) {
-            const publicIdWithExtension = urlParts.slice(uploadIndex + 2).join('/');
-            const publicId = publicIdWithExtension.substring(0, publicIdWithExtension.lastIndexOf('.'));
-            await cloudinary.uploader.destroy(publicId);
-            console.log('🗑️ Imagen anterior eliminada de Cloudinary:', publicId);
-          }
-        } catch (error) {
-          console.log('⚠️ Error eliminando imagen anterior:', error.message);
+      // 🗑️ Eliminar imagen anterior
+      if (producto.imagen && producto.imagen.startsWith('/uploads/')) {
+        const oldImagePath = path.join(FRONTEND_UPLOADS_PATH, path.basename(producto.imagen));
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlinkSync(oldImagePath);
+          console.log('🗑️ Imagen anterior eliminada:', oldImagePath);
         }
       }
-      producto.imagen = req.file.path; // 📸 Nueva URL de Cloudinary
-      console.log('✅ Nueva imagen subida a Cloudinary:', req.file.path);
+      producto.imagen = `/uploads/${req.file.filename}`;
+      console.log('📸 Nueva imagen guardada:', req.file.filename);
     }
 
-    // Validar antes de guardar
     const datosValidacion = {
       nombre: producto.nombre,
       descripcion: producto.descripcion,
@@ -2981,7 +2973,32 @@ router.put("/productos/:id", verifyToken, uploadProducto.single("imagen"), async
   }
 });
 
-// Obtener categorías disponibles
+router.delete("/productos/:id", verifyToken, async (req, res) => {
+  try {
+    const producto = await Producto.findById(req.params.id);
+    if (!producto) return res.status(404).json({ error: "Producto no encontrado" });
+
+    if (req.user.role !== "admin" && producto.usuario.toString() !== req.user.id) {
+      return res.status(403).json({ error: "No autorizado para eliminar este producto" });
+    }
+
+    // 🗑️ Eliminar imagen
+    if (producto.imagen && producto.imagen.startsWith('/uploads/')) {
+      const imagePath = path.join(FRONTEND_UPLOADS_PATH, path.basename(producto.imagen));
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+        console.log('🗑️ Imagen eliminada:', imagePath);
+      }
+    }
+
+    await producto.deleteOne();
+    res.json({ msg: "Producto eliminado correctamente" });
+  } catch (err) {
+    console.error("❌ Error eliminando producto:", err);
+    res.status(500).json({ msg: "Error al eliminar producto", error: err.message });
+  }
+});
+
 router.get("/productos/categorias/disponibles", async (req, res) => {
   try {
     const categorias = [
@@ -3004,13 +3021,11 @@ router.get("/productos/categorias/disponibles", async (req, res) => {
    Rutas adicionales para admin - Gestión de citas
    ====================== */
 
-// Obtener todas las citas (solo admin)
 router.get("/admin/citas", verifyToken, isAdmin, async (req, res) => {
   try {
     const { fecha, estado, tipo } = req.query;
     let query = {};
 
-    // Filtros opcionales
     if (fecha) {
       const fechaNormalizada = normalizarFecha(fecha);
       query.fecha = fechaNormalizada;
@@ -3036,7 +3051,6 @@ router.get("/admin/citas", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
-// Obtener cita específica (admin o dueño)
 router.get("/citas/:id", verifyToken, async (req, res) => {
   try {
     const cita = await Cita.findById(req.params.id)
@@ -3047,7 +3061,6 @@ router.get("/citas/:id", verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Cita no encontrada" });
     }
 
-    // Verificar permisos
     if (req.user.role !== "admin" && cita.usuario._id.toString() !== req.user.id) {
       return res.status(403).json({ error: "No autorizado para ver esta cita" });
     }
@@ -3059,7 +3072,6 @@ router.get("/citas/:id", verifyToken, async (req, res) => {
   }
 });
 
-// Actualizar cita completa (admin o dueño antes de que sea confirmada)
 router.put("/citas/:id", verifyToken, async (req, res) => {
   try {
     const cita = await Cita.findById(req.params.id);
@@ -3067,19 +3079,16 @@ router.put("/citas/:id", verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Cita no encontrada" });
     }
 
-    // Solo admin o dueño pueden modificar
     if (req.user.role !== "admin" && cita.usuario.toString() !== req.user.id) {
       return res.status(403).json({ error: "No autorizado para modificar esta cita" });
     }
 
-    // Los usuarios solo pueden modificar citas pendientes
     if (req.user.role !== "admin" && cita.estado !== "pendiente") {
       return res.status(400).json({ error: "Solo se pueden modificar citas pendientes" });
     }
 
     const { tipo, fecha, hora, motivo, notas } = req.body;
 
-    // Validar nuevos datos si se proporcionan
     if (fecha && !esFechaValida(fecha)) {
       return res.status(400).json({ 
         error: "Fecha inválida. No se pueden agendar citas en el pasado o los domingos" 
@@ -3092,7 +3101,6 @@ router.put("/citas/:id", verifyToken, async (req, res) => {
       });
     }
 
-    // Verificar disponibilidad si cambia fecha u hora
     if ((fecha && fecha !== cita.fecha.toISOString().split('T')[0]) || 
         (hora && hora !== cita.hora)) {
       const fechaNormalizada = fecha ? normalizarFecha(fecha) : cita.fecha;
@@ -3109,7 +3117,6 @@ router.put("/citas/:id", verifyToken, async (req, res) => {
       }
     }
 
-    // Actualizar campos
     if (tipo) cita.tipo = tipo;
     if (fecha) cita.fecha = normalizarFecha(fecha);
     if (hora) cita.hora = hora;
@@ -3134,7 +3141,6 @@ router.put("/citas/:id", verifyToken, async (req, res) => {
   }
 });
 
-// Obtener estadísticas de citas por fecha (admin)
 router.get("/admin/citas/estadisticas", verifyToken, isAdmin, async (req, res) => {
   try {
     const hoy = new Date();
@@ -3186,19 +3192,20 @@ router.get("/admin/citas/estadisticas", verifyToken, isAdmin, async (req, res) =
 });
 
 /* ======================
-   📧 Salud - ACTUALIZADA
+   📧 Salud
    ====================== */
 router.get("/health", (req, res) => {
   console.log('🩺 Health check solicitado');
   res.json({ 
     ok: true, 
-    message: "🩺 Servidor veterinario funcionando correctamente con verificación de email, carrito persistente y sistema automático de citas",
+    message: "🩺 Servidor veterinario funcionando correctamente con imágenes en frontend",
     timestamp: new Date().toISOString(),
     mongodb: mongoose.connection.readyState === 1 ? 'Conectado' : 'Desconectado',
     emailService: transporter ? 'Configurado' : 'No configurado',
     sistemaAutomaticoCitas: intervalId ? 'Activo' : 'Inactivo',
     frontendUrl: FRONTEND_URL,
     backendUrl: BACKEND_URL,
+    uploadsPath: FRONTEND_UPLOADS_PATH,
     features: [
       '📧 Verificación de email',
       '🛒 Carrito persistente',
@@ -3206,7 +3213,8 @@ router.get("/health", (req, res) => {
       '📅 Sistema de citas',
       '🤖 Gestión automática de citas',
       '📦 Catálogo de productos',
-      '🔐 Autenticación Google OAuth'
+      '🔐 Autenticación Google OAuth',
+      '📸 Imágenes guardadas en frontend/public/uploads'
     ]
   });
 });
@@ -3215,8 +3223,6 @@ router.get("/health", (req, res) => {
    Montar rutas de API
    ====================== */
 app.use("/api", router);
-
-
 
 /* ======================
    Manejo de errores global
@@ -3236,7 +3242,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Manejar cierre graceful del servidor
 process.on('SIGINT', () => {
   console.log('\n🛑 Recibida señal SIGINT. Cerrando servidor...');
   detenerSistemaAutomatico();
@@ -3250,68 +3255,29 @@ process.on('SIGTERM', () => {
 });
 
 /* ======================
-   📧 Servidor - ACTUALIZADO CON SISTEMA AUTOMÁTICO
+   📧 Servidor
    ====================== */
 app.listen(PORT, () => {
   console.log("🚀=======================================");
   console.log(`🩺 Servidor Veterinario corriendo en:`);
   console.log(`📍 ${BACKEND_URL}`);
   console.log(`🔗 API disponible en: ${BACKEND_URL}/api`);
+  console.log("📸 CONFIGURACIÓN DE IMÁGENES:");
+  console.log(`   • Carpeta: ${FRONTEND_UPLOADS_PATH}`);
+  console.log(`   • Las imágenes se guardan en: frontend/public/uploads/`);
+  console.log(`   • Se acceden desde el frontend con: /uploads/nombre-archivo.jpg`);
+  console.log(`   • NO necesitas servir imágenes desde el backend`);
   console.log("🩺 Endpoints principales:");
   console.log("   • Salud: GET /api/health");
-  console.log("   • Registro: POST /api/register (📧 CON VERIFICACIÓN EMAIL)");
-  console.log("   • Verificar Email: GET /api/verify-email/:token");
-  console.log("   • Reenviar Verificación: POST /api/resend-verification");
-  console.log("   • Login: POST /api/login (📧 VERIFICA EMAIL)");
-  console.log("   • Estado Email: GET /api/email/status (ADMIN)");
-  console.log("   • Actualizar Perfil: PUT /api/usuarios/perfil");
-  console.log("   • Mascotas: GET/POST /api/mascotas");
-  console.log("   • Citas: GET/POST /api/citas");
-  console.log("   • Horarios: GET /api/citas/horarios-disponibles/:fecha");
-  console.log("   • Admin Dashboard: GET /api/admin/dashboard");
+  console.log("   • Registro: POST /api/register");
+  console.log("   • Login: POST /api/login");
+  console.log("   • Mascotas: GET/POST/PUT/DELETE /api/mascotas");
   console.log("   • Productos: GET/POST/PUT/DELETE /api/productos");
-  console.log("   • Categorías: GET /api/productos/categorias/disponibles");
-  console.log("🛒 SISTEMA DE CARRITO PERSISTENTE ACTIVADO:");
-  console.log("   • Obtener carrito: GET /api/cart/:userId");
-  console.log("   • Guardar carrito: POST /api/cart");
-  console.log("   • Limpiar carrito: DELETE /api/cart/:userId");
-  console.log("   • Agregar item: PUT /api/cart/item");
-  console.log("   • Eliminar item: DELETE /api/cart/item/:userId/:productId");
-  console.log("   • Actualizar cantidad: PUT /api/cart/quantity");
-  console.log("   • Carritos se guardan automáticamente para usuarios registrados");
-  console.log("   • Carritos se borran para usuarios no registrados");
-  console.log("   • Sincronización en tiempo real con frontend");
-  console.log("🔐 Autenticación con Google configurada:");
-  console.log("   • POST /api/auth/google - Autenticar con Google");
-  console.log("   • POST /api/auth/google/link - Vincular cuenta Google");
-  console.log("   • DELETE /api/auth/google/unlink - Desvincular Google");
-  console.log("   • Google Client ID:", GOOGLE_CLIENT_ID);
-  console.log("📧 SISTEMA DE VERIFICACIÓN POR EMAIL ACTIVO:");
-  console.log("   • Registro tradicional requiere verificación de email");
-  console.log("   • Usuarios de Google automáticamente verificados");
-  console.log("   • Emails HTML profesionales con plantilla personalizada");
-  console.log("   • Tokens seguros con expiración de 24 horas");
-  console.log("   • Reenvío de verificación disponible");
-  console.log("   • Login bloqueado hasta verificar email");
-  console.log("   • Rate limiting: 1 email por minuto por dirección");
-  console.log("   • Limpieza automática de tokens expirados cada hora");
-  console.log("   • Middleware de verificación en rutas críticas");
-  console.log("   • Endpoint de estado del servicio para admin");
-  console.log("   • Google reCAPTCHA v3 integrado en registro y login");
-  console.log(`📧 URLs configuradas: Frontend=${FRONTEND_URL}, Backend=${BACKEND_URL}`);
-  console.log("🤖 SISTEMA AUTOMÁTICO DE CITAS CONFIGURADO:");
-  console.log("   • Actualización automática de estados cada 2 horas");
-  console.log("   • Eliminación de citas antiguas (>3 días)");
-  console.log("   • Endpoints de administración:");
-  console.log("     - POST /api/admin/citas/mantenimiento - Ejecutar manual");
-  console.log("     - GET /api/admin/citas/estadisticas-mantenimiento - Ver stats");
-  console.log("     - GET /api/admin/citas/config-automatico - Ver config");
-  console.log("     - POST /api/admin/citas/toggle-automatico - Controlar sistema");
-  console.log("   • Estados automáticos:");
-  console.log("     - pendiente/confirmada → completada (al pasar fecha/hora)");
-  console.log("     - completada/cancelada → eliminadas (después de 3 días)");
-  console.log("   • Logs detallados en consola del servidor");
-  console.log("💾 MONGODB: Modelos actualizados con esquema de carrito persistente");
-  console.log("🔄 SINCRONIZACIÓN: Carrito se sincroniza automáticamente entre dispositivos");
+  console.log("   • Citas: GET/POST/PUT/DELETE /api/citas");
+  console.log("   • Carrito: GET/POST/DELETE /api/cart");
+  console.log("🛒 SISTEMA DE CARRITO PERSISTENTE ACTIVADO");
+  console.log("🔐 Autenticación con Google OAuth configurada");
+  console.log("📧 SISTEMA DE VERIFICACIÓN POR EMAIL ACTIVO");
+  console.log("🤖 SISTEMA AUTOMÁTICO DE CITAS CONFIGURADO");
   console.log("=======================================🚀");
 });
