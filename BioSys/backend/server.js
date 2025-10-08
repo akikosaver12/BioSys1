@@ -5,8 +5,6 @@ const dotenv = require("dotenv");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const { OAuth2Client } = require('google-auth-library');
@@ -182,47 +180,18 @@ app.use((req, res, next) => {
   }
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Aumentar límite para Base64
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 /* ======================
-   📸 CONFIGURACIÓN DE ALMACENAMIENTO EN FRONTEND
+   📸 CONFIGURACIÓN DE MULTER PARA BASE64 (MEMORIA)
    ====================== */
 
-// 🎯 RUTA A LA CARPETA PUBLIC DEL FRONTEND
-// Ajusta esta ruta según tu estructura de carpetas
-const FRONTEND_UPLOADS_PATH = path.join(__dirname, "..", "frontend", "public", "uploads");
-
-console.log('📂 Ruta configurada para uploads:', FRONTEND_UPLOADS_PATH);
-
-// Crear carpeta si no existe
-if (!fs.existsSync(FRONTEND_UPLOADS_PATH)) {
-  fs.mkdirSync(FRONTEND_UPLOADS_PATH, { recursive: true });
-  console.log('✅ Carpeta uploads creada en frontend/public/uploads');
-} else {
-  console.log('✅ Carpeta uploads ya existe en frontend/public/uploads');
-}
-
-// 📸 CONFIGURACIÓN DE MULTER PARA GUARDAR EN FRONTEND
-const frontendStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Verificar que la carpeta existe
-    if (!fs.existsSync(FRONTEND_UPLOADS_PATH)) {
-      fs.mkdirSync(FRONTEND_UPLOADS_PATH, { recursive: true });
-      console.log('📁 Carpeta uploads creada en frontend');
-    }
-    cb(null, FRONTEND_UPLOADS_PATH);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const extension = path.extname(file.originalname);
-    const filename = file.fieldname + '-' + uniqueSuffix + extension;
-    console.log('💾 Guardando archivo:', filename);
-    cb(null, filename);
-  }
-});
+// 🆕 ALMACENAMIENTO EN MEMORIA para convertir a Base64
+const storage = multer.memoryStorage();
 
 const uploadMascota = multer({ 
-  storage: frontendStorage,
+  storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -234,7 +203,7 @@ const uploadMascota = multer({
 });
 
 const uploadProducto = multer({ 
-  storage: frontendStorage,
+  storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -245,11 +214,26 @@ const uploadProducto = multer({
   }
 });
 
-const upload = uploadMascota;
+console.log('✅ Multer configurado para guardar en MONGODB (Base64)');
 
-console.log('✅ Multer configurado para guardar en FRONTEND');
-console.log('📁 Ruta de uploads:', FRONTEND_UPLOADS_PATH);
-console.log('🌐 Las imágenes se accederán desde: /uploads/nombre-archivo.jpg');
+/* ======================
+   📸 FUNCIONES HELPER PARA IMÁGENES BASE64
+   ====================== */
+
+const convertirImagenABase64 = (file) => {
+  if (!file) return null;
+  
+  return {
+    data: file.buffer.toString('base64'),
+    contentType: file.mimetype
+  };
+};
+
+const obtenerImagenBase64ParaCliente = (imagenObj) => {
+  if (!imagenObj || !imagenObj.data) return null;
+  
+  return `data:${imagenObj.contentType};base64,${imagenObj.data}`;
+};
 
 /* ======================
    Conexión a MongoDB Atlas
@@ -391,6 +375,7 @@ CartSchema.methods.cleanupItems = function() {
 
 const Cart = mongoose.model('Cart', CartSchema);
 
+// 🆕 ESQUEMA DE MASCOTA CON IMAGEN EN BASE64
 const mascotaSchema = new mongoose.Schema(
   {
     nombre: { type: String, required: true, trim: true },
@@ -401,13 +386,20 @@ const mascotaSchema = new mongoose.Schema(
     estado: { type: String, required: true, trim: true },
     enfermedades: { type: String, default: "", trim: true },
     historial: { type: String, default: "", trim: true },
-    imagen: { type: String, default: "" },
+    // 🆕 IMAGEN COMO OBJETO CON DATA Y CONTENTTYPE
+    imagen: {
+      data: { type: String },
+      contentType: { type: String }
+    },
     usuario: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     vacunas: [
       {
         nombre: { type: String, required: true, trim: true },
         fecha: { type: Date, required: true },
-        imagen: String,
+        imagen: {
+          data: { type: String },
+          contentType: { type: String }
+        }
       },
     ],
     operaciones: [
@@ -415,7 +407,10 @@ const mascotaSchema = new mongoose.Schema(
         nombre: { type: String, required: true, trim: true },
         descripcion: { type: String, required: true, trim: true },
         fecha: { type: Date, required: true },
-        imagen: String,
+        imagen: {
+          data: { type: String },
+          contentType: { type: String }
+        }
       },
     ],
   },
@@ -424,12 +419,17 @@ const mascotaSchema = new mongoose.Schema(
 
 const Mascota = mongoose.model("Mascota", mascotaSchema);
 
+// 🆕 ESQUEMA DE PRODUCTO CON IMAGEN EN BASE64
 const productoSchema = new mongoose.Schema(
   {
     nombre: { type: String, required: true, trim: true },
     descripcion: { type: String, required: true, trim: true },
     precio: { type: Number, required: true, min: 0 },
-    imagen: String,
+    // 🆕 IMAGEN COMO OBJETO CON DATA Y CONTENTTYPE
+    imagen: {
+      data: { type: String },
+      contentType: { type: String }
+    },
     usuario: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     descuento: {
       tiene: { type: Boolean, default: false },
@@ -2070,7 +2070,18 @@ router.get("/usuarios/:id/mascotas", verifyToken, async (req, res) => {
     }
 
     const mascotas = await Mascota.find({ usuario: req.params.id });
-    res.json({ usuario, mascotas });
+    
+    // 🆕 CONVERTIR IMÁGENES A BASE64 PARA EL CLIENTE
+    const mascotasConImagen = mascotas.map(m => {
+      const mascotaObj = m.toObject();
+      if (mascotaObj.imagen && mascotaObj.imagen.data) {
+        mascotaObj.imagenUrl = obtenerImagenBase64ParaCliente(mascotaObj.imagen);
+      }
+      delete mascotaObj.imagen;
+      return mascotaObj;
+    });
+    
+    res.json({ usuario, mascotas: mascotasConImagen });
   } catch (error) {
     console.error("Error obteniendo mascotas de usuario:", error);
     res.status(500).json({ error: "Error al obtener mascotas del usuario" });
@@ -2078,8 +2089,9 @@ router.get("/usuarios/:id/mascotas", verifyToken, async (req, res) => {
 });
 
 /* ======================
-   MASCOTAS
+   🐾 RUTAS DE MASCOTAS CON BASE64
    ====================== */
+
 router.post("/mascotas", verifyToken, uploadMascota.single("imagen"), async (req, res) => {
   try {
     const { nombre, especie, raza, edad, genero, estado, enfermedades, historial } = req.body;
@@ -2108,8 +2120,9 @@ router.post("/mascotas", verifyToken, uploadMascota.single("imagen"), async (req
       return res.status(400).json({ error: "El género debe ser 'Macho' o 'Hembra'" });
     }
 
-    // 🎯 La imagen ahora se guarda en frontend/public/uploads
-    // Se accede con la ruta relativa desde el frontend
+    // 🆕 CONVERTIR IMAGEN A BASE64
+    const imagenBase64 = req.file ? convertirImagenABase64(req.file) : null;
+
     const nuevaMascota = new Mascota({
       nombre: nombre.trim(),
       especie: especie.trim(),
@@ -2119,13 +2132,12 @@ router.post("/mascotas", verifyToken, uploadMascota.single("imagen"), async (req
       estado: estado.trim(),
       enfermedades: enfermedades ? enfermedades.trim() : "",
       historial: historial ? historial.trim() : "",
-      imagen: req.file ? `/uploads/${req.file.filename}` : "",
+      imagen: imagenBase64,
       usuario: req.user.id,
     });
 
     await nuevaMascota.save();
-    console.log('✅ Mascota registrada:', nuevaMascota.nombre);
-    console.log('📸 Imagen guardada en:', FRONTEND_UPLOADS_PATH);
+    console.log('✅ Mascota registrada con imagen en MongoDB:', nuevaMascota.nombre);
     res.status(201).json({ msg: "Mascota registrada", mascota: nuevaMascota });
   } catch (err) {
     console.error("Error creando mascota:", err);
@@ -2144,12 +2156,20 @@ router.get("/mascotas", verifyToken, async (req, res) => {
     const mascotas = await Mascota.find({ usuario: req.user.id }).populate("usuario", "name email telefono");
     console.log('📋 Mascotas encontradas:', mascotas.length);
 
-    // 🌐 Las imágenes ya están con la ruta correcta /uploads/nombre-archivo.jpg
-    // El frontend las accederá directamente desde su carpeta public
-    const mascotasConImagen = mascotas.map((m) => ({
-      ...m.toObject(),
-      imagen: m.imagen || null,
-    }));
+    // 🆕 CONVERTIR IMÁGENES A BASE64 PARA EL CLIENTE
+    const mascotasConImagen = mascotas.map((m) => {
+      const mascotaObj = m.toObject();
+      
+      if (mascotaObj.imagen && mascotaObj.imagen.data) {
+        mascotaObj.imagenUrl = obtenerImagenBase64ParaCliente(mascotaObj.imagen);
+      } else {
+        mascotaObj.imagenUrl = null;
+      }
+      
+      delete mascotaObj.imagen; // No enviar el objeto completo
+      
+      return mascotaObj;
+    });
 
     res.json(mascotasConImagen);
   } catch (error) {
@@ -2191,17 +2211,10 @@ router.put("/mascotas/:id", verifyToken, uploadMascota.single("imagen"), async (
     if (enfermedades !== undefined) mascota.enfermedades = enfermedades.trim();
     if (historial !== undefined) mascota.historial = historial.trim();
 
+    // 🆕 ACTUALIZAR IMAGEN EN BASE64
     if (req.file) {
-      // 🎯 Eliminar imagen anterior si existe
-      if (mascota.imagen && mascota.imagen.startsWith('/uploads/')) {
-        const oldImagePath = path.join(FRONTEND_UPLOADS_PATH, path.basename(mascota.imagen));
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
-          console.log('🗑️ Imagen anterior eliminada:', oldImagePath);
-        }
-      }
-      mascota.imagen = `/uploads/${req.file.filename}`;
-      console.log('📸 Nueva imagen guardada:', req.file.filename);
+      mascota.imagen = convertirImagenABase64(req.file);
+      console.log('📸 Imagen actualizada en MongoDB');
     }
 
     await mascota.save();
@@ -2234,12 +2247,16 @@ router.get("/mascotas/:id", verifyToken, async (req, res) => {
       });
     }
 
-    const mascotaConImagen = {
-      ...mascota.toObject(),
-      imagen: mascota.imagen || null,
-    };
+    // 🆕 CONVERTIR IMAGEN A BASE64
+    const mascotaObj = mascota.toObject();
+    if (mascotaObj.imagen && mascotaObj.imagen.data) {
+      mascotaObj.imagenUrl = obtenerImagenBase64ParaCliente(mascotaObj.imagen);
+    } else {
+      mascotaObj.imagenUrl = null;
+    }
+    delete mascotaObj.imagen;
 
-    res.json(mascotaConImagen);
+    res.json(mascotaObj);
   } catch (error) {
     console.error("Error al obtener mascota:", error);
     res.status(500).json({ message: "Error al obtener mascota", error: error.message });
@@ -2269,7 +2286,7 @@ router.post("/mascotas/:id/vacunas", verifyToken, async (req, res) => {
     mascota.vacunas.push({
       nombre: nombre.trim(),
       fecha: new Date(fecha),
-      imagen: imagen || ""
+      imagen: imagen || null
     });
 
     await mascota.save();
@@ -2305,7 +2322,7 @@ router.post("/mascotas/:id/operaciones", verifyToken, async (req, res) => {
       nombre: nombre.trim(),
       descripcion: descripcion.trim(),
       fecha: new Date(fecha),
-      imagen: imagen || ""
+      imagen: imagen || null
     });
 
     await mascota.save();
@@ -2326,16 +2343,9 @@ router.delete("/mascotas/:id", verifyToken, async (req, res) => {
       return res.status(403).json({ error: "No autorizado para eliminar esta mascota" });
     }
 
-    // 🗑️ Eliminar imagen si existe
-    if (mascota.imagen && mascota.imagen.startsWith('/uploads/')) {
-      const imagePath = path.join(FRONTEND_UPLOADS_PATH, path.basename(mascota.imagen));
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
-        console.log('🗑️ Imagen eliminada:', imagePath);
-      }
-    }
-
+    // 🆕 No hay archivos que eliminar, solo borrar de MongoDB
     await mascota.deleteOne();
+    console.log('✅ Mascota eliminada de MongoDB');
     res.json({ msg: "Mascota eliminada con éxito" });
   } catch (err) {
     console.error("Error eliminando mascota:", err);
@@ -2403,7 +2413,6 @@ router.post("/citas", verifyToken, async (req, res) => {
 
     await nuevaCita.save();
     console.log('✅ Cita creada exitosamente:', nuevaCita._id, 'para mascota:', mascota.nombre);
-    
     await nuevaCita.populate([
       { path: 'mascota', select: 'nombre especie raza' },
       { path: 'usuario', select: 'name email telefono' }
@@ -2428,7 +2437,6 @@ router.post("/citas", verifyToken, async (req, res) => {
   }
 });
 
-// Listar citas del usuario
 router.get("/citas", verifyToken, async (req, res) => {
   try {
     console.log('📋 Obteniendo citas para usuario:', req.user.id);
@@ -2451,7 +2459,6 @@ router.get("/citas", verifyToken, async (req, res) => {
   }
 });
 
-// Obtener horarios disponibles
 router.get("/citas/horarios-disponibles/:fecha", verifyToken, async (req, res) => {
   try {
     const { fecha } = req.params;
@@ -2529,7 +2536,6 @@ router.get("/citas/horarios-disponibles/:fecha", verifyToken, async (req, res) =
   }
 });
 
-// Actualizar estado de cita (solo admin)
 router.put("/citas/:id/estado", verifyToken, isAdmin, async (req, res) => {
   try {
     const { estado } = req.body;
@@ -2564,7 +2570,6 @@ router.put("/citas/:id/estado", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
-// Cancelar cita (usuario puede cancelar su propia cita)
 router.delete("/citas/:id", verifyToken, async (req, res) => {
   try {
     const cita = await Cita.findById(req.params.id);
@@ -2741,21 +2746,13 @@ router.get("/admin/dashboard", verifyToken, isAdmin, async (req, res) => {
 });
 
 /* ======================
-   PRODUCTOS
+   📦 RUTAS DE PRODUCTOS CON BASE64
    ====================== */
+
 router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (req, res) => {
   try {
     console.log('📦 === INICIANDO CREACIÓN DE PRODUCTO ===');
     console.log('📸 Archivo recibido:', req.file ? 'SÍ' : 'NO');
-    if (req.file) {
-      console.log('📸 Detalles del archivo:', {
-        fieldname: req.file.fieldname,
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        filename: req.file.filename
-      });
-    }
     
     const { 
       nombre, descripcion, precio, categoria, stock,
@@ -2800,18 +2797,19 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
 
     console.log('✅ Validación de producto exitosa');
 
-    // 🎯 La imagen se guarda en frontend/public/uploads
+    // 🆕 CONVERTIR IMAGEN A BASE64
+    const imagenBase64 = req.file ? convertirImagenABase64(req.file) : null;
+
     const nuevoProducto = new Producto({
       ...datosProducto,
-      imagen: req.file ? `/uploads/${req.file.filename}` : "",
+      imagen: imagenBase64,
       usuario: req.user.id,
     });
 
     console.log('💾 Guardando producto en BD...');
     await nuevoProducto.save();
     
-    console.log('✅ Producto creado exitosamente:', nuevoProducto._id);
-    console.log('📸 Imagen guardada en:', FRONTEND_UPLOADS_PATH);
+    console.log('✅ Producto creado con imagen en MongoDB:', nuevoProducto._id);
     
     res.status(201).json({ 
       msg: "Producto creado exitosamente", 
@@ -2819,10 +2817,7 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
     });
     
   } catch (err) {
-    console.error("❌ ERROR COMPLETO AL CREAR PRODUCTO:");
-    console.error("Nombre:", err.name);
-    console.error("Mensaje:", err.message);
-    console.error("Stack:", err.stack);
+    console.error("❌ ERROR AL CREAR PRODUCTO:", err);
     
     if (err.name === 'ValidationError') {
       const errors = Object.values(err.errors).map(e => e.message);
@@ -2840,9 +2835,7 @@ router.post("/productos", verifyToken, uploadProducto.single("imagen"), async (r
     } else {
       res.status(500).json({ 
         msg: "Error al crear producto", 
-        error: err.message,
-        tipo: err.name,
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        error: err.message
       });
     }
   }
@@ -2852,11 +2845,21 @@ router.get("/productos", async (req, res) => {
   try {
     const productos = await Producto.find({ activo: true }).populate("usuario", "name email");
     
+    // 🆕 CONVERTIR IMÁGENES A BASE64 PARA CLIENTE
     const productosConDescuento = productos.map(producto => {
       const productoObj = producto.toObject();
       productoObj.precioConDescuento = producto.getPrecioConDescuento();
       productoObj.descuentoVigente = producto.isDescuentoVigente();
       productoObj.ahorroDescuento = productoObj.precio - productoObj.precioConDescuento;
+      
+      if (productoObj.imagen && productoObj.imagen.data) {
+        productoObj.imagenUrl = obtenerImagenBase64ParaCliente(productoObj.imagen);
+      } else {
+        productoObj.imagenUrl = null;
+      }
+      
+      delete productoObj.imagen;
+      
       return productoObj;
     });
     
@@ -2876,6 +2879,15 @@ router.get("/productos/:id", async (req, res) => {
     productoObj.precioConDescuento = producto.getPrecioConDescuento();
     productoObj.descuentoVigente = producto.isDescuentoVigente();
     productoObj.ahorroDescuento = productoObj.precio - productoObj.precioConDescuento;
+    
+    // 🆕 CONVERTIR IMAGEN A BASE64
+    if (productoObj.imagen && productoObj.imagen.data) {
+      productoObj.imagenUrl = obtenerImagenBase64ParaCliente(productoObj.imagen);
+    } else {
+      productoObj.imagenUrl = null;
+    }
+    
+    delete productoObj.imagen;
     
     res.json(productoObj);
   } catch (err) {
@@ -2932,17 +2944,10 @@ router.put("/productos/:id", verifyToken, uploadProducto.single("imagen"), async
       }
     }
 
+    // 🆕 ACTUALIZAR IMAGEN EN BASE64
     if (req.file) {
-      // 🗑️ Eliminar imagen anterior
-      if (producto.imagen && producto.imagen.startsWith('/uploads/')) {
-        const oldImagePath = path.join(FRONTEND_UPLOADS_PATH, path.basename(producto.imagen));
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
-          console.log('🗑️ Imagen anterior eliminada:', oldImagePath);
-        }
-      }
-      producto.imagen = `/uploads/${req.file.filename}`;
-      console.log('📸 Nueva imagen guardada:', req.file.filename);
+      producto.imagen = convertirImagenABase64(req.file);
+      console.log('📸 Imagen actualizada en MongoDB');
     }
 
     const datosValidacion = {
@@ -2982,16 +2987,9 @@ router.delete("/productos/:id", verifyToken, async (req, res) => {
       return res.status(403).json({ error: "No autorizado para eliminar este producto" });
     }
 
-    // 🗑️ Eliminar imagen
-    if (producto.imagen && producto.imagen.startsWith('/uploads/')) {
-      const imagePath = path.join(FRONTEND_UPLOADS_PATH, path.basename(producto.imagen));
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
-        console.log('🗑️ Imagen eliminada:', imagePath);
-      }
-    }
-
+    // 🆕 No hay archivos que eliminar, solo borrar de MongoDB
     await producto.deleteOne();
+    console.log('✅ Producto eliminado de MongoDB');
     res.json({ msg: "Producto eliminado correctamente" });
   } catch (err) {
     console.error("❌ Error eliminando producto:", err);
@@ -3198,14 +3196,13 @@ router.get("/health", (req, res) => {
   console.log('🩺 Health check solicitado');
   res.json({ 
     ok: true, 
-    message: "🩺 Servidor veterinario funcionando correctamente con imágenes en frontend",
+    message: "🩺 Servidor veterinario funcionando correctamente con imágenes en MongoDB (Base64)",
     timestamp: new Date().toISOString(),
     mongodb: mongoose.connection.readyState === 1 ? 'Conectado' : 'Desconectado',
     emailService: transporter ? 'Configurado' : 'No configurado',
     sistemaAutomaticoCitas: intervalId ? 'Activo' : 'Inactivo',
     frontendUrl: FRONTEND_URL,
     backendUrl: BACKEND_URL,
-    uploadsPath: FRONTEND_UPLOADS_PATH,
     features: [
       '📧 Verificación de email',
       '🛒 Carrito persistente',
@@ -3214,7 +3211,8 @@ router.get("/health", (req, res) => {
       '🤖 Gestión automática de citas',
       '📦 Catálogo de productos',
       '🔐 Autenticación Google OAuth',
-      '📸 Imágenes guardadas en frontend/public/uploads'
+      '📸 Imágenes guardadas en MongoDB como Base64',
+      '💾 Todo en una sola base de datos'
     ]
   });
 });
@@ -3263,10 +3261,10 @@ app.listen(PORT, () => {
   console.log(`📍 ${BACKEND_URL}`);
   console.log(`🔗 API disponible en: ${BACKEND_URL}/api`);
   console.log("📸 CONFIGURACIÓN DE IMÁGENES:");
-  console.log(`   • Carpeta: ${FRONTEND_UPLOADS_PATH}`);
-  console.log(`   • Las imágenes se guardan en: frontend/public/uploads/`);
-  console.log(`   • Se acceden desde el frontend con: /uploads/nombre-archivo.jpg`);
-  console.log(`   • NO necesitas servir imágenes desde el backend`);
+  console.log(`   • Las imágenes se guardan en MongoDB como Base64`);
+  console.log(`   • No se requiere carpeta de archivos`);
+  console.log(`   • Todo está en la base de datos`);
+  console.log(`   • Respuesta incluye imagenUrl con data:image formato`);
   console.log("🩺 Endpoints principales:");
   console.log("   • Salud: GET /api/health");
   console.log("   • Registro: POST /api/register");
@@ -3279,5 +3277,6 @@ app.listen(PORT, () => {
   console.log("🔐 Autenticación con Google OAuth configurada");
   console.log("📧 SISTEMA DE VERIFICACIÓN POR EMAIL ACTIVO");
   console.log("🤖 SISTEMA AUTOMÁTICO DE CITAS CONFIGURADO");
+  console.log("💾 IMÁGENES EN MONGODB (BASE64) - TODO EN UNA BD");
   console.log("=======================================🚀");
 });
