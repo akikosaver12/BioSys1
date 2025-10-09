@@ -1480,46 +1480,98 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
   try {
     const { name, email, password, telefono, direccion, role } = req.body;
     
-    // LOG DETALLADO
-
+    // 🆕 LOG DETALLADO COMPLETO
+    console.log('📥 === DATOS RECIBIDOS EN /register ===');
+    console.log('Name:', name, '(tipo:', typeof name, ')');
+    console.log('Email:', email, '(tipo:', typeof email, ')');
+    console.log('Password presente:', !!password, '(longitud:', password?.length, ')');
+    console.log('Telefono:', telefono, '(tipo:', typeof telefono, ')');
+    console.log('Direccion:', JSON.stringify(direccion, null, 2));
+    console.log('Role:', role);
+    console.log('Email Disabled:', !!req.emailDisabled);
+    console.log('Transporter disponible:', !!transporter);
+    console.log('=====================================');
     
+    // Validaciones básicas
     if (!name || !email || !password || !telefono || !direccion) {
+      console.error('❌ Faltan campos obligatorios');
+      const camposFaltantes = [];
+      if (!name) camposFaltantes.push('name');
+      if (!email) camposFaltantes.push('email');
+      if (!password) camposFaltantes.push('password');
+      if (!telefono) camposFaltantes.push('telefono');
+      if (!direccion) camposFaltantes.push('direccion');
+      
       return res.status(400).json({ 
         error: "Todos los campos son obligatorios",
-        campos: ["name", "email", "password", "telefono", "direccion"]
+        campos: camposFaltantes,
+        recibido: { 
+          name: !!name, 
+          email: !!email, 
+          password: !!password, 
+          telefono: !!telefono, 
+          direccion: !!direccion 
+        }
       });
     }
     
+    console.log('✅ Validación básica pasada');
+    
+    // Validación de contraseña
     if (password.length < 6) {
+      console.error('❌ Contraseña muy corta:', password.length);
       return res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
     }
 
+    console.log('✅ Validación de contraseña pasada');
+
+    // Validación de teléfono
+    console.log('🔍 Validando teléfono:', telefono);
     if (!validarTelefono(telefono)) {
+      console.error('❌ Teléfono inválido');
       return res.status(400).json({ error: "El teléfono debe tener un formato válido (7-15 dígitos)" });
     }
 
+    console.log('✅ Validación de teléfono pasada');
+
+    // Validación de dirección
+    console.log('🔍 Validando dirección...');
     const validacionDireccion = validarDireccion(direccion);
     if (!validacionDireccion.valido) {
+      console.error('❌ Dirección inválida:', validacionDireccion.mensaje);
       return res.status(400).json({ error: validacionDireccion.mensaje });
     }
 
+    console.log('✅ Validación de dirección pasada');
+
+    // Verificar si el usuario ya existe
+    console.log('🔍 Verificando si el email ya existe...');
     const exists = await User.findOne({ email: email.toLowerCase() });
     if (exists) {
       if (exists.emailVerified) {
+        console.log('❌ Email ya registrado y verificado');
         return res.status(400).json({ error: "El correo ya está registrado y verificado" });
       } else {
         await User.deleteOne({ _id: exists._id });
-        console.log('🗑️ Registro anterior no verificado eliminado');
+        console.log('🗑️ Usuario anterior no verificado eliminado');
       }
     }
 
+    console.log('✅ Email disponible');
+
+    // Generar token y hashear contraseña
+    console.log('🔐 Generando token y hasheando contraseña...');
     const tokenVerificacion = generarTokenVerificacion();
     const expiracionToken = new Date();
     expiracionToken.setHours(expiracionToken.getHours() + 24);
-    const hashed = await bcrypt.hash(password, 10);
     
-    // 🆕 AUTO-VERIFICAR SI EMAIL ESTÁ DESHABILITADO
-    const nuevoUsuario = new User({ 
+    console.log('🔐 Hasheando contraseña...');
+    const hashed = await bcrypt.hash(password, 10);
+    console.log('✅ Contraseña hasheada correctamente');
+    
+    // Crear objeto de usuario
+    console.log('📝 Preparando datos del usuario...');
+    const datosUsuario = { 
       name: name.trim(), 
       email: email.trim().toLowerCase(), 
       password: hashed, 
@@ -1533,16 +1585,26 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
       role: role || 'user',
       emailVerificationToken: req.emailDisabled ? undefined : tokenVerificacion,
       emailVerificationExpires: req.emailDisabled ? undefined : expiracionToken,
-      emailVerified: req.emailDisabled ? true : false, // ✅ Auto-verificar
-      pendingActivation: req.emailDisabled ? false : true // ✅ Activar directamente
+      emailVerified: req.emailDisabled ? true : false,
+      pendingActivation: req.emailDisabled ? false : true
+    };
+
+    console.log('📝 Datos del usuario preparados:', {
+      ...datosUsuario,
+      password: '[OCULTO]',
+      emailVerificationToken: '[OCULTO]'
     });
 
-    await nuevoUsuario.save();
-    console.log('✅ Usuario guardado en BD:', nuevoUsuario._id);
+    console.log('💾 Creando usuario en BD...');
+    const nuevoUsuario = new User(datosUsuario);
 
-    // 🆕 SI EMAIL DESHABILITADO, RESPONDER INMEDIATAMENTE
+    console.log('💾 Guardando usuario...');
+    await nuevoUsuario.save();
+    console.log('✅ Usuario guardado exitosamente con ID:', nuevoUsuario._id);
+
+    // Si email está deshabilitado, responder inmediatamente
     if (req.emailDisabled) {
-      console.log('✅ Registro SIN verificación de email');
+      console.log('✅ Registro completado SIN verificación de email');
       return res.status(201).json({ 
         message: "Registro completado exitosamente",
         requiereVerificacion: false,
@@ -1552,9 +1614,11 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
     }
 
     // Enviar email de verificación
+    console.log('📧 Intentando enviar email de verificación...');
     const emailEnviado = await enviarEmailVerificacion(email, name, tokenVerificacion);
     
     if (emailEnviado.success) {
+      console.log('✅ Email de verificación enviado exitosamente');
       res.status(201).json({ 
         message: "Registro iniciado exitosamente",
         requiereVerificacion: true,
@@ -1563,29 +1627,46 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
         messageId: emailEnviado.messageId
       });
     } else {
+      console.error('❌ Error enviando email:', emailEnviado.error);
       await User.deleteOne({ _id: nuevoUsuario._id });
+      console.log('🗑️ Usuario eliminado por fallo en envío de email');
+      
       res.status(500).json({ 
         error: "Error al enviar email de verificación",
-        codigo: "EMAIL_SEND_FAILED"
+        codigo: "EMAIL_SEND_FAILED",
+        detalles: emailEnviado.error
       });
     }
 
   } catch (error) {
-    console.error("💥 === ERROR EN /register ===");
-    console.error("Nombre:", error.name);
+    console.error("💥 === ERROR COMPLETO EN /register ===");
+    console.error("Tipo de error:", error.name);
     console.error("Mensaje:", error.message);
-    console.error("Stack:", error.stack);
-    console.error("===============================");
+    console.error("Stack completo:", error.stack);
+    
+    if (error.errors) {
+      console.error("Errores de validación de Mongoose:");
+      Object.keys(error.errors).forEach(key => {
+        console.error(`  - ${key}:`, error.errors[key].message);
+      });
+    }
+    
+    console.error("======================================");
     
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(e => e.message);
-      return res.status(400).json({ error: "Error de validación", detalles: errors });
+      return res.status(400).json({ 
+        error: "Error de validación", 
+        detalles: errors,
+        campos: Object.keys(error.errors)
+      });
     } else if (error.code === 11000) {
       return res.status(400).json({ error: "El email ya está registrado" });
     } else {
       return res.status(500).json({ 
         error: "Error en el servidor",
-        mensaje: process.env.NODE_ENV === 'development' ? error.message : undefined
+        mensaje: error.message,
+        tipo: error.name
       });
     }
   }
