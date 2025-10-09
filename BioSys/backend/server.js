@@ -151,41 +151,75 @@ const verificarConfiguracionEmail = (req, res, next) => {
   }
   next();
 };
+// ========================================
+// 🌐 CONFIGURACIÓN CORS MEJORADA
+// ========================================
+
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://biosysvet.site',
+  'https://www.biosysvet.site', // Por si acaso tiene www
+  'https://accounts.google.com',
+  'https://www.googleapis.com'
+];
+
 const corsOptions = {
-  origin: [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'https://accounts.google.com',
-    'https://www.googleapis.com',
-    'https://biosysvet.site' 
-  ],
+  origin: function (origin, callback) {
+    // Permitir peticiones sin origin (como Postman, apps móviles, etc.)
+    if (!origin) {
+      console.log('✅ Petición sin origin permitida');
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('✅ Origin permitido:', origin);
+      callback(null, true);
+    } else {
+      console.log('❌ Origin NO permitido:', origin);
+      callback(new Error('No permitido por CORS: ' + origin));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: [
     'Content-Type', 
     'Authorization', 
     'X-Requested-With',
     'Accept',
-    'Origin'
+    'Origin',
+    'Access-Control-Allow-Headers',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
   ],
-  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
   preflightContinue: false,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 204,
+  maxAge: 86400 // 24 horas de cache para preflight
 };
+
+// ⚠️ IMPORTANTE: Aplicar CORS ANTES de cualquier otra cosa
+app.use(cors(corsOptions));
+
+// Middleware adicional para manejar preflight manualmente
+app.options('*', cors(corsOptions));
+
+// Logging de todas las peticiones (útil para debug)
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path} desde ${req.headers.origin || 'sin origin'}`);
+  next();
+});
+
+// ❌ ELIMINAR ESTE BLOQUE (ya no es necesario):
+// app.use((req, res, next) => {
+//   if (req.method === 'OPTIONS') {
+//     ...
+//   }
+// });
 
 app.use(cors(corsOptions));
 
-app.use((req, res, next) => {
-  if (req.method === 'OPTIONS') {
-    res.header('Access-Control-Allow-Origin', req.headers.origin);
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.sendStatus(200);
-  } else {
-    next();
-  }
-});
+
 
 app.use(express.json({ limit: '10mb' })); // Aumentar límite para Base64
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
