@@ -136,24 +136,14 @@ try {
 // Reemplaza esta función en server.js
 const verificarConfiguracionEmail = (req, res, next) => {
   if (!transporter) {
-    console.warn('⚠️ Servicio de email no configurado - Continuando sin verificación');
-    // En desarrollo, permitir continuar
-    if (process.env.NODE_ENV === 'development') {
-      req.emailDisabled = true; // Marcar que el email está deshabilitado
-      return next();
-    }
-    // En producción, bloquear
-    return res.status(500).json({
-      error: 'Servicio de email no configurado',
-      codigo: 'EMAIL_NOT_CONFIGURED',
-      mensaje: 'El administrador debe configurar las credenciales de email'
-    });
+    console.warn('⚠️ Transporter no disponible, continuando sin email');
+    req.emailDisabled = true; // Marcar que email está deshabilitado
+    return next(); // ✅ PERMITIR CONTINUAR
   }
+ 
   next();
 };
-// ========================================
-// 🌐 CONFIGURACIÓN CORS MEJORADA
-// ========================================
+
 
 // ========================================
 // 🌐 CONFIGURACIÓN CORS COMPLETA Y FUNCIONAL
