@@ -13,9 +13,14 @@ const Footer: React.FC = () => {
           {/* COLUMNA 1: INFORMACIÓN DE LA EMPRESA */}
           <div className="md:col-span-2">
   <div className="flex items-center space-x-3 mb-6">
-    <div className="w-10 h-10 bg-gradient-to-br from-[TU_COLOR_PRINCIPAL] to-[TU_COLOR_HOVER] rounded-2xl flex items-center justify-center shadow-lg">
-      <span className="text-xl font-bold text-white">{brandConfig.logo.icon}</span>
-    </div>
+    <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden">
+  <img 
+    src={brandConfig.logo.url} 
+    alt={brandConfig.logo.alt} 
+    className="w-full h-full object-contain"
+  />
+</div>
+
     <div>
       <h3 className="text-xl font-bold text-gray-900">{brandConfig.name}</h3>
       <p className="text-sm text-gray-500">{brandConfig.slogan}</p>

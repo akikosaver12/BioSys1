@@ -1,14 +1,15 @@
 export const brandConfig = {
   // INFORMACIÓN BÁSICA DE LA MARCA
-  name: 'Tus mascota',           // Reemplazar con tu nombre
+  name: 'BioSys',           // Reemplazar con tu nombre
   slogan: 'la salud de tu mascota es nuestra pioridada',         // Reemplazar con tu slogan
   
   // LOGO E IMÁGENES
-  logo: {
-    icon: '🛍️',                     // Emoji temporal (puedes cambiarlo)
-    url: '/logo.png',               // Si tienes logo, poner ruta aquí
-    alt: 'TU_NOMBRE_AQUÍ Logo'      // Texto alternativo
-  },
+logo: {
+  icon: '🛍️',                  // Emoji temporal (puedes cambiarlo)
+  url: '/Bio.png',              // Ruta correcta desde public/
+  alt: 'BioSys Logo'            // Texto alternativo accesible
+},
+
   
   // INFORMACIÓN DE CONTACTO
   contact: {

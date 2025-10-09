@@ -98,13 +98,17 @@ const Header: React.FC = () => {
     <header className="bg-white shadow-lg sticky top-0 z-50 border-b border-gray-100">
       <div className="container mx-auto px-6 py-4">
         <div className="flex justify-between items-center">
+          {/* LOGO + NOMBRE */}
           <Link to="/" className="flex items-center space-x-3 group">
             <div className="relative">
-              <div className="w-10 h-10 bg-gradient-to-br from-[TU_COLOR_PRINCIPAL] to-[TU_COLOR_HOVER] rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
-                <span className="text-xl font-bold text-white">
-                  {brandConfig.logo.icon}
-                </span>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105 overflow-hidden">
+                <img
+                  src={brandConfig.logo.url}
+                  alt={brandConfig.logo.alt}
+                  className="w-full h-full object-contain"
+                />
               </div>
+
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-30 rounded-2xl transition-opacity duration-300 transform -skew-x-12"></div>
             </div>
             <div className="hidden sm:block">
@@ -115,6 +119,7 @@ const Header: React.FC = () => {
             </div>
           </Link>
 
+          {/* NAV PRINCIPAL */}
           <nav className="hidden lg:flex items-center space-x-1">
             {[
               { path: "/", label: "Inicio" },
@@ -137,6 +142,7 @@ const Header: React.FC = () => {
             ))}
           </nav>
 
+          {/* ICONOS DERECHA */}
           <div className="flex items-center space-x-4">
             <button className="p-2 text-gray-400 hover:text-red-500 transition-colors duration-200 relative">
               <svg
@@ -154,6 +160,7 @@ const Header: React.FC = () => {
               </svg>
             </button>
 
+            {/* LOGIN / USUARIO */}
             {!user ? (
               <Link
                 to="/login"
@@ -290,6 +297,7 @@ const Header: React.FC = () => {
               </div>
             )}
 
+            {/* CARRITO */}
             <Link to="/cart" className="relative group">
               <div className="flex items-center space-x-3 bg-gray-900 text-white px-4 py-3 rounded-2xl hover:bg-gray-800 transition-all duration-200 shadow-lg hover:shadow-xl">
                 <div className="relative">
@@ -327,6 +335,7 @@ const Header: React.FC = () => {
               </div>
             </Link>
 
+            {/* MENU MOBILE */}
             <button className="lg:hidden p-2 text-gray-600 hover:text-gray-900 transition-colors">
               <svg
                 className="w-6 h-6"
@@ -345,6 +354,7 @@ const Header: React.FC = () => {
           </div>
         </div>
 
+        {/* NAV MOBILE */}
         <nav className="lg:hidden mt-4 flex justify-center space-x-1 overflow-x-auto pb-2">
           {[
             { path: "/", label: "Inicio", icon: "🏠" },

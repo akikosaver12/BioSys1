@@ -28,6 +28,9 @@ import EmailVerificationSuccess from './components/user/EmailVerificationSuccess
 // 🔹 Nueva página para admin
 import AdminPanel from './components/user/AdminPanel';
 
+// 🔹 Componente para hacer scroll al inicio
+import ScrollToTop from './components/common/ScrollToTop';
+
 // 👉 Tu Google Client ID (reemplaza con el tuyo)
 const GOOGLE_CLIENT_ID = "503963971592-17vo21di0tjf249341l4ocscemath5p0.apps.googleusercontent.com";
 
@@ -71,6 +74,9 @@ function App() {
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <CartProvider>
         <Router>
+          {/* 🔹 Este componente asegura que el scroll siempre suba al top al cambiar de página */}
+          <ScrollToTop />
+          
           <Layout>
             <Routes>
               <Route path="/" element={<HomePage />} />
