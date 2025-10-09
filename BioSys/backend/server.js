@@ -60,74 +60,17 @@ const checkEmailRateLimit = (email) => {
   return true;
 };
 
-// 📧 CONFIGURACIÓN MEJORADA DE NODEMAILER
+// 📧 CONFIGURACIÓN MEJORADA DE NODEMAILER - TEMPORALMENTE DESHABILITADA
 const crearTransporter = () => {
-  try {
-    const emailUser = process.env.EMAIL_USER;
-    const emailPass = process.env.EMAIL_PASS;
-    
-    if (!emailUser || !emailPass) {
-      console.error('⚠️ EMAIL_USER o EMAIL_PASS no definidos - Servicio de email deshabilitado');
-      return null;
-    }
-    
-    if (emailUser === 'tu-email@gmail.com' || emailPass === 'tu-password-de-aplicacion') {
-      console.error('⚠️ Usando valores placeholder en .env - Servicio de email deshabilitado');
-      return null;
-    }
-
-    if (!nodemailer) {
-      console.error('❌ Nodemailer no está instalado - Ejecuta: npm install nodemailer');
-      return null;
-    }
-    
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth: {
-        user: emailUser,
-        pass: emailPass
-      },
-      tls: {
-        rejectUnauthorized: false
-      },
-      pool: true,
-      maxConnections: 1,
-      rateDelta: 20000,
-      rateLimit: 3,
-      debug: true,
-      logger: true
-    });
-
-    transporter.verify((error, success) => {
-      if (error) {
-        console.error('ERROR en verificación de email:', error);
-        console.log('\n🔧 GUÍA DE SOLUCIÓN:');
-        console.log('1. Verifica que EMAIL_USER sea tu email real de Gmail');
-        console.log('2. Verifica que EMAIL_PASS sea una contraseña de aplicación (16 caracteres)');
-        console.log('3. Asegúrate de tener habilitada la verificación en 2 pasos en Google');
-        console.log('4. Genera una nueva contraseña de aplicación en: https://myaccount.google.com/apppasswords');
-        console.log('5. Reinicia el servidor después de actualizar las variables');
-        console.log('6. EMAIL_PASS no debe tener espacios - ejemplo: jzkulnzczqpnkeii');
-      } else {
-        console.log('EXITO: Servidor de email configurado correctamente');
-        console.log('Listo para enviar emails desde:', emailUser);
-      }
-    });
-
-    return transporter;
-  } catch (err) {
-    console.error('❌ Error creando transporter:', err);
-    return null;
-  }
+  console.log('⚠️ VERIFICACIÓN DE EMAIL TEMPORALMENTE DESHABILITADA');
+  console.log('✅ Los usuarios se registrarán sin verificación de email');
+  return null; // Retornar null para deshabilitar email
 };
 
 let transporter;
 try {
   transporter = crearTransporter();
-  console.log('Transporter creado:', !!transporter);
+  console.log('📧 Email service:', transporter ? 'Habilitado' : 'DESHABILITADO (temporal)');
 } catch (error) {
   console.error('❌ Error crítico creando transporter:', error);
   transporter = null;
@@ -135,14 +78,10 @@ try {
 
 // Reemplaza esta función en server.js
 const verificarConfiguracionEmail = (req, res, next) => {
-  if (!transporter) {
-    console.warn('⚠️ Transporter no disponible - Continuando sin verificación de email');
-    req.emailDisabled = true; // Marcar que email está deshabilitado
-    return next(); // ✅ PERMITIR CONTINUAR
-  }
-  next();
+  console.log('⚠️ Verificación de email DESHABILITADA - Continuando sin verificación');
+  req.emailDisabled = true; // Marcar que email está deshabilitado
+  return next(); // ✅ PERMITIR CONTINUAR
 };
-
 
 // ========================================
 // 🌐 CONFIGURACIÓN CORS COMPLETA Y FUNCIONAL
@@ -1481,6 +1420,7 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
     const { name, email, password, telefono, direccion, role } = req.body;
     
     console.log('📥 Registro iniciado para:', email);
+    console.log('📧 Email verification DISABLED - Direct registration');
     
     // Validaciones básicas
     if (!name || !email || !password || !telefono || !direccion) {
@@ -1508,25 +1448,20 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
       if (exists.emailVerified) {
         return res.status(400).json({ error: "El correo ya está registrado y verificado" });
       } else {
+        // Si existe pero no está verificado, eliminarlo para permitir re-registro
         await User.deleteOne({ _id: exists._id });
         console.log('🗑️ Usuario anterior no verificado eliminado');
       }
     }
 
-    // 🆕 AQUÍ ESTÁ EL FIX: Definir el token y hashear la contraseña ANTES de usarlos
-    const tokenVerificacion = generarTokenVerificacion();
-    const expiracionToken = new Date();
-    expiracionToken.setHours(expiracionToken.getHours() + 24);
-    
-    // ✅ CRÍTICO: Definir 'hashed' AQUÍ, ANTES de crear el usuario
-    const hashed = await bcrypt.hash(password, 10);
+    // ✅ CREAR USUARIO SIN VERIFICACIÓN DE EMAIL
+    const hashedPassword = await bcrypt.hash(password, 10);
     console.log('✅ Contraseña hasheada correctamente');
     
-    // Ahora SÍ podemos crear el usuario usando 'hashed'
     const nuevoUsuario = new User({ 
       name: name.trim(), 
       email: email.trim().toLowerCase(), 
-      password: hashed, // ✅ Ahora 'hashed' está definido
+      password: hashedPassword,
       telefono: telefono.trim(),
       direccion: {
         calle: direccion.calle.trim(),
@@ -1535,44 +1470,28 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
         pais: direccion.pais ? direccion.pais.trim() : 'Colombia'
       },
       role: role || 'user',
-      emailVerificationToken: req.emailDisabled ? undefined : tokenVerificacion,
-      emailVerificationExpires: req.emailDisabled ? undefined : expiracionToken,
-      emailVerified: req.emailDisabled ? true : false,
-      pendingActivation: req.emailDisabled ? false : true
+      // ✅ SIN VERIFICACIÓN DE EMAIL
+      emailVerified: true, // Marcado como verificado automáticamente
+      pendingActivation: false, // No requiere activación
+      emailVerificationToken: undefined,
+      emailVerificationExpires: undefined
     });
 
     await nuevoUsuario.save();
-    console.log('✅ Usuario guardado en BD:', nuevoUsuario._id);
+    console.log('✅ Usuario guardado en BD sin verificación:', nuevoUsuario._id);
 
-    // Si email está deshabilitado, responder inmediatamente
-    if (req.emailDisabled) {
-      console.log('✅ Registro completado SIN verificación de email');
-      return res.status(201).json({ 
-        message: "Registro completado exitosamente",
-        requiereVerificacion: false,
-        email: email,
-        instrucciones: "Tu cuenta ha sido activada automáticamente. Puedes iniciar sesión ahora."
-      });
-    }
-
-    // Enviar email de verificación
-    const emailEnviado = await enviarEmailVerificacion(email, name, tokenVerificacion);
-    
-    if (emailEnviado.success) {
-      res.status(201).json({ 
-        message: "Registro iniciado exitosamente",
-        requiereVerificacion: true,
-        email: email,
-        instrucciones: "Hemos enviado un email de verificación a tu correo.",
-        messageId: emailEnviado.messageId
-      });
-    } else {
-      await User.deleteOne({ _id: nuevoUsuario._id });
-      res.status(500).json({ 
-        error: "Error al enviar email de verificación",
-        codigo: "EMAIL_SEND_FAILED"
-      });
-    }
+    // ✅ RESPUESTA EXITOSA SIN VERIFICACIÓN
+    res.status(201).json({ 
+      message: "Registro completado exitosamente",
+      requiereVerificacion: false,
+      email: email,
+      instrucciones: "Tu cuenta ha sido activada automáticamente. Puedes iniciar sesión ahora.",
+      usuario: {
+        id: nuevoUsuario._id,
+        name: nuevoUsuario.name,
+        email: nuevoUsuario.email
+      }
+    });
 
   } catch (error) {
     console.error("💥 Error completo en registro:", error.message);
@@ -2214,17 +2133,17 @@ router.put("/mascotas/:id", verifyToken, uploadMascota.single("imagen"), async (
 
     const { nombre, especie, raza, edad, genero, estado, enfermedades, historial } = req.body;
 
-    if (edad !== undefined) {
-      const edadNum = parseInt(edad);
-      if (isNaN(edadNum) || edadNum < 0 || edadNum > 15) {
-        return res.status(400).json({ error: "La edad debe ser un número entre 0 y 15" });
-      }
-      mascota.edad = edadNum;
-    }
+if (edad !== undefined) {
+  const edadNum = parseInt(edad);
+  if (isNaN(edadNum) || edadNum < 0 || edadNum > 15) {
+    return res.status(400).json({ error: "La edad debe ser un número entre 0 y 15" });
+  }
+  mascota.edad = edadNum;
+}
 
-    if (genero !== undefined && !["Macho", "Hembra"].includes(genero)) {
-      return res.status(400).json({ error: "El género debe ser 'Macho' o 'Hembra'" });
-    }
+if (genero !== undefined && !["Macho", "Hembra"].includes(genero)) {
+  return res.status(400).json({ error: "El género debe ser 'Macho' o 'Hembra'" });
+}
 
     if (nombre && nombre.trim()) mascota.nombre = nombre.trim();
     if (especie && especie.trim()) mascota.especie = especie.trim();
