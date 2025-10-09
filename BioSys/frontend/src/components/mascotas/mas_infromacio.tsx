@@ -1,20 +1,25 @@
 import React, { useState, useEffect } from "react";  
 import { useNavigate, useParams } from "react-router-dom";
 
-// CONSTANTES - Consistente con otros archivos
 const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
 
 interface Vacuna {
   nombre: string;
   fecha: string;
-  imagen?: string;
+  imagen?: {
+    data: string;
+    contentType: string;
+  };
 }
 
 interface Operacion {
   nombre: string;
   descripcion: string;
   fecha: string;
-  imagen?: string;
+  imagen?: {
+    data: string;
+    contentType: string;
+  };
 }
 
 interface Mascota {
@@ -27,7 +32,7 @@ interface Mascota {
   genero?: string;
   vacunas?: Vacuna[];
   operaciones?: Operacion[];
-  imagen?: string;
+  imagenUrl?: string; // 🆕 Imagen en Base64
   usuario?: {
     _id: string;
     name: string;
@@ -59,7 +64,7 @@ const MascotaInfo: React.FC = () => {
           return;
         }
 
-      const url = `${API_URL}/mascotas/${idMascota}`;
+        const url = `${API_URL}/mascotas/${idMascota}`;
         const response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -91,7 +96,10 @@ const MascotaInfo: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 text-gray-700 flex items-center justify-center">
-        <p className="text-lg font-medium">Cargando información de la mascota...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-lime-500 mx-auto mb-4"></div>
+          <p className="text-lg font-medium">Cargando información de la mascota...</p>
+        </div>
       </div>
     );
   }
@@ -99,11 +107,17 @@ const MascotaInfo: React.FC = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 text-gray-700 flex items-center justify-center">
-        <div className="bg-white shadow-lg rounded-lg p-6 text-center">
-          <p className="text-red-500 font-semibold">Error: {error}</p>
+        <div className="bg-white shadow-lg rounded-2xl p-8 text-center max-w-md">
+          <p className="text-red-500 font-semibold text-xl mb-4">❌ Error: {error}</p>
           <p className="text-gray-500 mt-2">
             {idMascota ? `ID de mascota: ${idMascota}` : "Sin ID específico"}
           </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-6 bg-lime-400 hover:bg-lime-500 text-black px-6 py-3 rounded-xl font-bold transition-colors"
+          >
+            Reintentar
+          </button>
         </div>
       </div>
     );
@@ -112,8 +126,8 @@ const MascotaInfo: React.FC = () => {
   if (!mascota) {
     return (
       <div className="min-h-screen bg-gray-50 text-gray-700 flex items-center justify-center">
-        <div className="bg-white shadow-lg rounded-lg p-6">
-          <p className="text-gray-500">No se encontró información de la mascota</p>
+        <div className="bg-white shadow-lg rounded-2xl p-8">
+          <p className="text-gray-500 text-lg">No se encontró información de la mascota</p>
         </div>
       </div>
     );
@@ -123,11 +137,11 @@ const MascotaInfo: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex">
       {/* Columna Izquierda */}
       <div className="w-2/3 p-10 space-y-6">
-        <div className="bg-white shadow-lg rounded-xl p-6">
-          <h1 className="text-2xl font-bold text-green-600">
+        <div className="bg-white shadow-xl rounded-3xl p-8">
+          <h1 className="text-3xl font-bold text-lime-500 mb-2">
             {mascota.nombre || "Sin nombre"}
           </h1>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-400 mb-6">
             Información detallada de tu mascota
           </p>
 
@@ -142,13 +156,18 @@ const MascotaInfo: React.FC = () => {
           </div>
 
           {/* Vacunas */}
-          <div className="mt-6">
-            <h2 className="text-lg font-semibold text-gray-700">Vacunas</h2>
+          <div className="mt-8">
+            <h2 className="text-xl font-semibold text-gray-700 mb-4">💉 Vacunas</h2>
             {mascota.vacunas && mascota.vacunas.length > 0 ? (
-              <ul className="list-disc ml-6 text-gray-600">
+              <ul className="space-y-2">
                 {mascota.vacunas.map((v, i) => (
-                  <li key={i}>
-                    {v.nombre} - {new Date(v.fecha).toLocaleDateString()}
+                  <li key={i} className="bg-green-50 p-4 rounded-xl border border-green-200">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-green-800">{v.nombre}</span>
+                      <span className="text-green-600 text-sm">
+                        {new Date(v.fecha).toLocaleDateString()}
+                      </span>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -158,14 +177,19 @@ const MascotaInfo: React.FC = () => {
           </div>
 
           {/* Operaciones */}
-          <div className="mt-6">
-            <h2 className="text-lg font-semibold text-gray-700">Operaciones</h2>
+          <div className="mt-8">
+            <h2 className="text-xl font-semibold text-gray-700 mb-4">⚕️ Operaciones</h2>
             {mascota.operaciones && mascota.operaciones.length > 0 ? (
-              <ul className="list-disc ml-6 text-gray-600">
+              <ul className="space-y-3">
                 {mascota.operaciones.map((op, i) => (
-                  <li key={i}>
-                    <strong>{op.nombre}</strong> - {op.descripcion} (
-                    {new Date(op.fecha).toLocaleDateString()})
+                  <li key={i} className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+                    <div className="flex justify-between items-start mb-2">
+                      <strong className="text-blue-800">{op.nombre}</strong>
+                      <span className="text-blue-600 text-sm">
+                        {new Date(op.fecha).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-blue-700 text-sm">{op.descripcion}</p>
                   </li>
                 ))}
               </ul>
@@ -180,20 +204,24 @@ const MascotaInfo: React.FC = () => {
       <div className="relative w-1/3 flex flex-col items-center justify-start p-8">
         <MascotaCard mascota={mascota} />
 
-        <div className="mt-6 w-full flex items-center justify-center">
-          {mascota.imagen ? (
+        <div className="mt-8 w-full flex items-center justify-center">
+          {mascota.imagenUrl ? (
+            // 🆕 IMAGEN BASE64 DESDE MONGODB
             <img
-              src={mascota.imagen}
+              src={mascota.imagenUrl}
               alt={mascota.nombre || "Mascota"}
-              className="max-h-[400px] rounded-xl shadow-lg object-cover"
+              className="max-h-[500px] max-w-full rounded-3xl shadow-2xl object-cover"
               onError={(e) => {
                 (e.target as HTMLImageElement).src =
                   "https://via.placeholder.com/300x400/cccccc/666666?text=Sin+Imagen";
               }}
             />
           ) : (
-            <div className="w-64 h-80 bg-gray-200 rounded-lg flex items-center justify-center shadow-inner">
-              <p className="text-gray-500 text-center">Sin imagen disponible</p>
+            <div className="w-80 h-96 bg-gray-100 rounded-3xl flex items-center justify-center shadow-xl">
+              <div className="text-center">
+                <span className="text-6xl mb-4 block">🐾</span>
+                <p className="text-gray-500">Sin imagen disponible</p>
+              </div>
             </div>
           )}
         </div>
@@ -203,9 +231,9 @@ const MascotaInfo: React.FC = () => {
 };
 
 const InfoField: React.FC<{ label: string; value?: string }> = ({ label, value }) => (
-  <div>
-    <h3 className="text-sm font-medium text-gray-500">{label}</h3>
-    <p className="text-base text-gray-700">{value || "No especificado"}</p>
+  <div className="bg-gray-50 p-4 rounded-xl">
+    <h3 className="text-sm font-medium text-gray-500 mb-1">{label}</h3>
+    <p className="text-base text-gray-900 font-semibold">{value || "No especificado"}</p>
   </div>
 );
 
@@ -234,33 +262,33 @@ const MascotaCard: React.FC<{ mascota: Mascota }> = ({ mascota }) => {
         throw new Error(errorData.error || "Error al eliminar mascota");
       }
 
-      alert("Mascota eliminada con éxito");
+      alert("✅ Mascota eliminada con éxito");
       navigate("/mascotas");
     } catch (err) {
       console.error("Error eliminando mascota:", err);
-      alert("Ocurrió un error al eliminar la mascota");
+      alert("❌ Ocurrió un error al eliminar la mascota");
     }
   };
 
   return (
     <div className="absolute top-4 right-4 flex gap-3">
       <button
-        className="px-4 py-2 text-sm font-semibold border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100 transition"
+        className="px-4 py-2 text-sm font-semibold border-2 border-gray-300 text-gray-600 rounded-xl hover:bg-gray-100 transition-colors"
         onClick={() => navigate("/mascotas")}
       >
-        Volver
+        ← Volver
       </button>
       <button
-        className="px-4 py-2 text-sm font-semibold bg-yellow-400 text-white rounded-lg hover:bg-yellow-500 transition"
+        className="px-4 py-2 text-sm font-semibold bg-yellow-400 text-black rounded-xl hover:bg-yellow-500 transition-colors"
         onClick={() => navigate(`/edit/${mascota._id}`)}
       >
-        Editar
+        ✏️ Editar
       </button>
       <button
-        className="px-4 py-2 text-sm font-semibold bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+        className="px-4 py-2 text-sm font-semibold bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors"
         onClick={handleDelete}
       >
-        Eliminar
+        🗑️ Eliminar
       </button>
     </div>
   );

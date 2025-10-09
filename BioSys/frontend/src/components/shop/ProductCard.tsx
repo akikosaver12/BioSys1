@@ -92,11 +92,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     >
       
       {/* IMAGEN DEL PRODUCTO */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 h-64 flex items-center justify-center">
+        {/* 🆕 IMAGEN ADAPTADA - object-contain para que se vea completa */}
         <img
-          src={product.imagen || 'https://via.placeholder.com/400?text=Producto'}
+          src={product.imagenUrl || product.imagen || 'https://via.placeholder.com/400?text=Producto'}
           alt={product.nombre}
-          className="w-full h-64 object-cover"
+          className="w-full h-full object-contain p-2"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.src = 'https://via.placeholder.com/400?text=Producto';

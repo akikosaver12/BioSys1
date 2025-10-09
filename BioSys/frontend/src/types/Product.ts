@@ -6,6 +6,7 @@ export interface BackendProduct {
   precio: number;
   categoria: 'alimento' | 'juguetes' | 'medicamentos' | 'accesorios' | 'higiene' | 'otros';
   imagen?: string;
+  imagenUrl?: string; // 🆕 OPCIONAL - Base64 desde MongoDB
   stock: number;
   envioGratis: boolean;
   activo: boolean;
@@ -13,6 +14,12 @@ export interface BackendProduct {
     tiene: boolean;
     meses: number;
     descripcion: string;
+  };
+  descuento?: {
+    tiene: boolean;
+    porcentaje: number;
+    fechaInicio?: Date | string;
+    fechaFin?: Date | string;
   };
   usuario: {
     name: string;
@@ -30,7 +37,7 @@ export interface Product extends BackendProduct {
   description: string;
   price: number;
   category: string;
-  image?: string;
+  image?: string; // 🆕 Este campo contendrá imagenUrl o imagen
 }
 
 // Tipos para el carrito

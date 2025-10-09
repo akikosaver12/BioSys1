@@ -4,8 +4,6 @@ import ProductCard from '../components/shop/ProductCard';
 import Loading from '../components/common/Loading';
 import { Grid, List } from "lucide-react";
 
-const BASE_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com";
-
 const ProductsPage: React.FC = () => {
   const { products, loading, error } = useProducts();
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,15 +24,14 @@ const ProductsPage: React.FC = () => {
     return categoryMap[categoria] || categoria;
   };
 
-  // Normalizar datos que vienen del backend
+  // 🆕 Normalizar productos - Usar imagenUrl en lugar de construir rutas
   const normalizedProducts = products.map(p => ({
     id: p._id, 
     name: p.nombre,
     description: p.descripcion,
-    price: p.precio, // Solo precio base, sin descuentos
+    price: p.precio,
     category: p.categoria,
-    image: p.imagen ? (p.imagen.startsWith('http') ? p.imagen : `${BASE_URL}${p.imagen}`) : "/placeholder.png",
-    // Mantener datos originales para ProductCard
+    image: p.imagenUrl || p.imagen || "/placeholder.png", // 🆕 Priorizar imagenUrl
     originalProduct: p
   }));
 

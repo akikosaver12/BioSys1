@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Camera, Upload, X, Check } from "lucide-react";
 
-// CONSTANTES - Consistente con otros archivos
 const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
 
 interface FormState {
@@ -39,7 +38,7 @@ function EditarMascota() {
     const fetchMascota = async () => {
       try {
         const token = localStorage.getItem("token");
-       const res = await fetch(`${API_URL}/mascotas/${idMascota}`, {
+        const res = await fetch(`${API_URL}/mascotas/${idMascota}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
 
@@ -55,6 +54,8 @@ function EditarMascota() {
           estado: data.estado || "",
           imagen: null,
         });
+        
+        // 📸 ACTUALIZADO: Acceso directo desde /uploads/
         setImagenActual(data.imagen || "");
       } catch (err) {
         console.error("Error al cargar mascota:", err);
@@ -67,7 +68,6 @@ function EditarMascota() {
     if (idMascota) fetchMascota();
   }, [idMascota]);
 
-  // Handlers
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -117,7 +117,6 @@ function EditarMascota() {
 
       const token = localStorage.getItem("token");
       const res = await fetch(`${API_URL}/mascotas/${idMascota}`, {
-
         method: "PUT",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: data,
@@ -181,10 +180,14 @@ function EditarMascota() {
                   className="w-full h-full object-cover"
                 />
               ) : imagenActual ? (
+                // 📸 ACTUALIZADO: Acceso directo desde /uploads/
                 <img
                   src={imagenActual}
                   alt="Imagen actual"
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = 'https://via.placeholder.com/200?text=Sin+Imagen';
+                  }}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center p-6">

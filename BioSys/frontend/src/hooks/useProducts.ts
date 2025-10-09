@@ -62,7 +62,7 @@ export function useProducts(): UseProductsReturn {
           description: p.descripcion,
           price: p.precio, // Solo el precio base, sin descuentos
           category: p.categoria,
-          image: p.imagen,
+          image: p.imagenUrl || p.imagen, // 🆕 PRIORIZAR imagenUrl (Base64)
         }));
 
       setProducts(normalized);
@@ -103,7 +103,7 @@ export function useProducts(): UseProductsReturn {
         description: data.descripcion,
         price: data.precio,
         category: data.categoria,
-        image: data.imagen,
+        image: data.imagenUrl || data.imagen, // 🆕 PRIORIZAR imagenUrl (Base64)
       };
 
       return normalized;

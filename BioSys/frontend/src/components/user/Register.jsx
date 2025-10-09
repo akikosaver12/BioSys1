@@ -346,102 +346,120 @@ const Register = () => {
 
   // Manejar el registro tradicional - MEJORADO con mejor manejo de errores
   const handleSubmit = useCallback(async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    console.log("🔄 Iniciando registro con datos:", {
-      ...formData,
-      password: '[OCULTO]'
+  // 🆕 LOG DETALLADO DE LO QUE SE ENVÍA
+  console.log("📤 === DATOS QUE SE VAN A ENVIAR ===");
+  console.log(JSON.stringify(formData, null, 2));
+  console.log("====================================");
+
+  const erroresValidacion = validarFormulario();
+  if (Object.keys(erroresValidacion).length > 0) {
+    console.log("❌ Errores de validación:", erroresValidacion);
+    setErrors(erroresValidacion);
+    return;
+  }
+
+  setLoading(true);
+  setErrors({});
+
+  try {
+    console.log("📤 Enviando a:", `${API_URL}/register`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const res = await fetch(`${API_URL}/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(formData),
+      signal: controller.signal
     });
 
-    const erroresValidacion = validarFormulario();
-    if (Object.keys(erroresValidacion).length > 0) {
-      console.log("❌ Errores de validación:", erroresValidacion);
-      setErrors(erroresValidacion);
+    clearTimeout(timeoutId);
+    
+    // 🆕 LEER RESPUESTA COMO TEXTO PRIMERO
+    const responseText = await res.text();
+    console.log("📥 === RESPUESTA RAW DEL SERVIDOR ===");
+    console.log("Status:", res.status, res.statusText);
+    console.log("Response:", responseText);
+    console.log("====================================");
+    
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error("❌ Error parseando JSON:", e);
+      alert("❌ El servidor devolvió una respuesta inválida: " + responseText.substring(0, 200));
       return;
     }
+    
+    console.log("📥 Respuesta parseada:", data);
 
-    setLoading(true);
-    setErrors({});
-
-    try {
-      console.log("📤 Enviando datos al servidor...");
+    if (res.ok) {
+      console.log("✅ Registro exitoso!");
       
-      // Timeout para la petición
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
-
-      const res = await fetch(`${API_URL}/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-      const data = await res.json();
-      
-      console.log("📥 Respuesta del servidor:", {
-        ...data,
-        email: data.email ? '[EMAIL_PRIVADO]' : undefined
-      });
-
-      if (res.ok) {
-        console.log("✅ Registro exitoso!");
-        
-        if (data.requiereVerificacion) {
-          navigate("/verificacion-pendiente", { 
-            state: { 
-              email: data.email,
-              mensaje: data.instrucciones 
-            }
-          });
-        } else {
-          alert("✅ ¡Registro exitoso! Bienvenido a la clínica veterinaria");
-          navigate("/login");
-        }
-      } else {
-        console.log("❌ Error en el registro:", data);
-        
-        if (res.status === 400) {
-          if (data.campos) {
-            const erroresServidor = {};
-            data.campos.forEach((campo) => {
-              erroresServidor[campo] = `${campo} es requerido`;
-            });
-            setErrors(erroresServidor);
-          } else if (data.error) {
-            if (data.error.includes('email')) {
-              setErrors({ email: data.error });
-            } else if (data.error.includes('teléfono') || data.error.includes('telefono')) {
-              setErrors({ telefono: data.error });
-            } else if (data.error.includes('dirección') || data.error.includes('direccion')) {
-              setErrors({ 'direccion.calle': data.error });
-            } else {
-              alert("❌ " + data.error);
-            }
+      if (data.requiereVerificacion) {
+        navigate("/verificacion-pendiente", { 
+          state: { 
+            email: data.email,
+            mensaje: data.instrucciones 
           }
-        } else if (res.status === 500) {
-          alert("❌ Error interno del servidor. Por favor, intenta de nuevo más tarde.");
-        } else {
-          alert("❌ " + (data.error || "Error en el registro"));
-        }
-      }
-    } catch (error) {
-      console.error("💥 Error de conexión:", error);
-      
-      if (error.name === 'AbortError') {
-        alert("⚠️ La petición tardó demasiado tiempo. Intenta de nuevo.");
-      } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        alert("⚠️ No se pudo conectar con el servidor. Verifica que esté corriendo en " + API_URL.replace('/api', ''));
+        });
       } else {
-        alert("⚠️ Error de conexión con el servidor. Por favor, intenta de nuevo.");
+        alert("✅ ¡Registro exitoso! Bienvenido a la clínica veterinaria");
+        navigate("/login");
       }
-    } finally {
-      setLoading(false);
+    } else {
+      // 🆕 LOG MEJORADO DE ERRORES
+      console.error("❌ === ERROR DEL SERVIDOR ===");
+      console.error("Status:", res.status);
+      console.error("Error:", data.error);
+      console.error("Código:", data.codigo);
+      console.error("Campos faltantes:", data.campos);
+      console.error("Detalles:", data.detalles);
+      console.error("============================");
+      
+      if (res.status === 400) {
+        if (data.campos) {
+          const erroresServidor = {};
+          data.campos.forEach((campo) => {
+            erroresServidor[campo] = `${campo} es requerido`;
+          });
+          setErrors(erroresServidor);
+          alert("❌ Faltan campos obligatorios: " + data.campos.join(", "));
+        } else if (data.error) {
+          alert("❌ " + data.error);
+          if (data.error.includes('email')) {
+            setErrors({ email: data.error });
+          }
+        }
+      } else if (res.status === 500) {
+        alert("❌ Error del servidor: " + (data.mensaje || data.error || "Error interno"));
+      } else {
+        alert("❌ " + (data.error || "Error en el registro"));
+      }
     }
-  }, [formData, validarFormulario, navigate]);
+  } catch (error) {
+    console.error("💥 === ERROR DE CONEXIÓN ===");
+    console.error("Tipo:", error.name);
+    console.error("Mensaje:", error.message);
+    console.error("Stack:", error.stack);
+    console.error("============================");
+    
+    if (error.name === 'AbortError') {
+      alert("⚠️ La petición tardó demasiado tiempo. Intenta de nuevo.");
+    } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      alert("⚠️ No se pudo conectar con el servidor.\n\nVerifica:\n1. El servidor está corriendo\n2. La URL es correcta: " + API_URL);
+    } else {
+      alert("⚠️ Error: " + error.message);
+    }
+  } finally {
+    setLoading(false);
+  }
+}, [formData, validarFormulario, navigate]);
 
   // Manejar click del botón de Google - MEJORADO
   const handleGoogleButtonClick = useCallback(() => {

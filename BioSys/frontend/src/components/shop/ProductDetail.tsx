@@ -55,7 +55,8 @@ const ProductDetail: React.FC = () => {
           description: backendData.descripcion,
           price: backendData.precio,
           category: backendData.categoria,
-          image: backendData.imagen,
+          image: backendData.imagenUrl || backendData.imagen,
+          imagenUrl: backendData.imagenUrl
         };
         
         setProduct(productData);
@@ -132,7 +133,10 @@ const ProductDetail: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Cargando producto...</p>
+        </div>
       </div>
     );
   }
@@ -156,7 +160,8 @@ const ProductDetail: React.FC = () => {
   }
 
   const isAvailable = product.activo && product.stock > 0;
-  const images: string[] = [product.imagen || 'https://via.placeholder.com/600?text=Producto'];
+  // 🆕 Usar imagenUrl (Base64) o imagen como fallback
+  const images: string[] = [product.imagenUrl || product.imagen || 'https://via.placeholder.com/600?text=Producto'];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -184,7 +189,7 @@ const ProductDetail: React.FC = () => {
             {/* SECCIÓN DE IMÁGENES */}
             <div className="lg:w-1/2 p-6">
               <div className="space-y-4">
-                {/* Imagen principal */}
+                {/* Imagen principal - 🆕 BASE64 */}
                 <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden">
                   <img
                     src={images[selectedImageIndex]}

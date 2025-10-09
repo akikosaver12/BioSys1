@@ -48,101 +48,81 @@ const CartPage: React.FC = () => {
     }
   };
 
- const procesarPago = async () => {
-  // Validaciones iniciales
-  if (!cartState.items || cartState.items.length === 0) {
-    setError('El carrito está vacío');
-    return;
-  }
-
-  // Validar que todos los items tienen ID
-  const itemsValidos = cartState.items.filter(item => item && item.id && item.name && item.price);
-  if (itemsValidos.length === 0) {
-    setError('No hay productos válidos en el carrito');
-    return;
-  }
-
-  setProcesandoPago(true);
-  setError('');
-
-  try {
-    const token = localStorage.getItem('token');
-    
-    // 🔍 DEBUG - Agregar estos logs
-    console.log('🔑 Token existe:', !!token);
-    console.log('🔑 Token (primeros 20 chars):', token?.substring(0, 20));
-    
-    if (!token) {
-      setError('Debes iniciar sesión para continuar');
-      setProcesandoPago(false);
+  const procesarPago = async () => {
+    if (!cartState.items || cartState.items.length === 0) {
+      setError('El carrito está vacío');
       return;
     }
 
-    // Mapear solo items válidos
-    const items = itemsValidos.map(item => ({
-      title: item.name,
-      unit_price: item.price,
-      quantity: item.quantity,
-      description: `${getCategoryLabel(item.category)} - ${item.name}`,
-      currency_id: 'COP'
-    }));
+    const itemsValidos = cartState.items.filter(item => item && item.id && item.name && item.price);
+    if (itemsValidos.length === 0) {
+      setError('No hay productos válidos en el carrito');
+      return;
+    }
 
-    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    setProcesandoPago(true);
+    setError('');
 
-    const payer = {
-      name: userData.name || 'Usuario',
-      email: userData.email || 'user@example.com',
-      phone: userData.telefono || '3001234567',
-      address: {
-        street_name: userData.direccion?.calle || 'Calle principal',
-        street_number: 123,
-        zip_code: '110111'
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setError('Debes iniciar sesión para continuar');
+        setProcesandoPago(false);
+        return;
       }
-    };
 
-    // LOGS TEMPORALES - AGREGA ESTO
-    console.log('📤 Enviando datos a Mercado Pago:');
-    console.log('Items:', items);
-    console.log('Payer:', payer);
-    console.log('Token presente:', !!token);
+      const items = itemsValidos.map(item => ({
+        title: item.name,
+        unit_price: item.price,
+        quantity: item.quantity,
+        description: `${getCategoryLabel(item.category)} - ${item.name}`,
+        currency_id: 'COP'
+      }));
 
-    const response = await fetch(`${API_URL}/crear-preferencia-pago`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ items, payer })
-    });
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
 
-    // AGREGA ESTE LOG
-    console.log('📥 Respuesta del servidor:', response.status);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('❌ Error del servidor:', errorData);
-      throw new Error(errorData.message || 'Error al procesar el pago');
+      const payer = {
+        name: userData.name || 'Usuario',
+        email: userData.email || 'user@example.com',
+        phone: userData.telefono || '3001234567',
+        address: {
+          street_name: userData.direccion?.calle || 'Calle principal',
+          street_number: 123,
+          zip_code: '110111'
+        }
+      };
+
+      const response = await fetch(`${API_URL}/crear-preferencia-pago`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ items, payer })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al procesar el pago');
+      }
+
+      const data = await response.json();
+      
+      const redirectUrl = data.init_point || data.sandbox_init_point;
+      if (!redirectUrl) {
+        throw new Error('No se recibió URL de pago válida del servidor');
+      }
+      
+      window.location.href = redirectUrl;
+
+    } catch (error) {
+      console.error('Error procesando pago:', error);
+      setError('Hubo un error al procesar el pago. Por favor intenta nuevamente.');
+      setProcesandoPago(false);
     }
+  };
 
-    const data = await response.json();
-    
-    // Verificar que tenemos una URL válida antes de redirigir
-    const redirectUrl = data.init_point || data.sandbox_init_point;
-    if (!redirectUrl) {
-      throw new Error('No se recibió URL de pago válida del servidor');
-    }
-    
-    console.log('🔗 URL de redirección:', redirectUrl);
-    window.location.href = redirectUrl;
-
-  } catch (error) {
-    console.error('Error procesando pago:', error);
-    setError('Hubo un error al procesar el pago. Por favor intenta nuevamente.');
-    setProcesandoPago(false);
-  }
-};
-
-  // SI NO HAY USUARIO LOGUEADO
   if (!cartState.isUserLoggedIn) {
     return (
       <div className="min-h-screen bg-gray-50 py-20">
@@ -191,7 +171,6 @@ const CartPage: React.FC = () => {
     );
   }
 
-  // CARRITO VACÍO (PERO CON USUARIO LOGUEADO)
   if (cartState.items.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 py-20">
@@ -234,7 +213,6 @@ const CartPage: React.FC = () => {
     );
   }
 
-  // CARRITO CON PRODUCTOS
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="container mx-auto px-6">
@@ -274,13 +252,14 @@ const CartPage: React.FC = () => {
           
           <div className="xl:col-span-2 space-y-6">
             {cartState.items
-              .filter(item => item && item.id) // Filtrar items válidos
+              .filter(item => item && item.id)
               .map(item => (
               <div key={item.id} className="group bg-white rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 p-6">
                 <div className="flex flex-col sm:flex-row gap-6">
                   
                   <div className="flex-shrink-0">
                     <div className="w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl overflow-hidden">
+                      {/* 🆕 IMAGEN BASE64 */}
                       <img 
                         src={item.image || 'https://via.placeholder.com/128?text=Producto'} 
                         alt={item.name} 

@@ -6,12 +6,9 @@ import {
   TrendingUp, Activity, Settings
 } from "lucide-react";
 
-// CONSTANTES - Consistente con otros archivos
 const API_URL = process.env.REACT_APP_API_URL || "https://biosys1.onrender.com/api";
-const BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || "https://biosys1.onrender.com";
 
 const AdminPanel = () => {
-  // --- Obtener token robusto ---
   const getToken = () => {
     if (typeof window !== "undefined" && window.localStorage) {
       const raw =
@@ -43,7 +40,6 @@ const AdminPanel = () => {
     envioGratis: false
   });
   
-  // ESTADO PARA EDICIÓN
   const [editingProduct, setEditingProduct] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   
@@ -59,18 +55,16 @@ const AdminPanel = () => {
   const [serverStatus, setServerStatus] = useState("checking");
   const fileRef = useRef(null);
 
-  // FUNCIÓN PARA INICIAR EDICIÓN
   const startEditProduct = (producto) => {
     setIsEditMode(true);
     setEditingProduct(producto);
     setActiveTab("productos");
     
-    // Llenar el formulario con los datos del producto
     setFormData({
       nombre: producto.nombre || "",
       precio: producto.precio || "",
       descripcion: producto.descripcion || "",
-      imagen: null, // La imagen se mantendrá como estaba
+      imagen: null,
       categoria: producto.categoria || "otros",
       stock: producto.stock || "",
       tieneDescuento: producto.descuento?.tiene || false,
@@ -89,12 +83,10 @@ const AdminPanel = () => {
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  // FUNCIÓN PARA CANCELAR EDICIÓN
   const cancelEdit = () => {
     setIsEditMode(false);
     setEditingProduct(null);
     
-    // Resetear formulario
     setFormData({
       nombre: "",
       precio: "",
@@ -116,7 +108,6 @@ const AdminPanel = () => {
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  // Función para agregar vacunas
   const handleAgregarVacuna = async (e, mascotaId) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -151,7 +142,6 @@ const AdminPanel = () => {
     }
   };
 
-  // Función para agregar operaciones
   const handleAgregarOperacion = async (e, mascotaId) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -187,7 +177,6 @@ const AdminPanel = () => {
     }
   };
 
-  // --- Server Health ---
   const checkServerHealth = async () => {
     try {
       const response = await fetch(`${API_URL}/health`);
@@ -205,7 +194,6 @@ const AdminPanel = () => {
     }
   };
 
-  // --- fetch helper ---
   const fetchJSON = async (url, options = {}) => {
     try {
       const token = getToken();
@@ -232,7 +220,6 @@ const AdminPanel = () => {
     }
   };
 
-  // --- Handlers formulario actualizados ---
   const handleChange = (e) => {
     const { name, value, files, type, checked } = e.target;
     if (files && files[0]) {
@@ -245,7 +232,6 @@ const AdminPanel = () => {
     }
   };
 
-  // FUNCIÓN ACTUALIZADA PARA MANEJAR CREAR/EDITAR
   const handleSubmit = async (e) => {
     e.preventDefault();
     setWarn("");
@@ -261,18 +247,14 @@ const AdminPanel = () => {
     try {
       const data = new FormData();
       
-      // Campos básicos
       data.append("nombre", formData.nombre);
       data.append("precio", formData.precio);
       data.append("descripcion", formData.descripcion);
-      
-      // Nuevos campos
       data.append("categoria", formData.categoria);
       data.append("stock", formData.stock || "0");
       data.append("envioGratis", formData.envioGratis);
-      
-      // Campos de descuento
       data.append("tieneDescuento", formData.tieneDescuento);
+      
       if (formData.tieneDescuento) {
         data.append("porcentajeDescuento", formData.porcentajeDescuento);
         if (formData.fechaInicioDescuento) {
@@ -283,7 +265,6 @@ const AdminPanel = () => {
         }
       }
       
-      // Campos de garantía
       data.append("tieneGarantia", formData.tieneGarantia);
       if (formData.tieneGarantia) {
         data.append("mesesGarantia", formData.mesesGarantia);
@@ -294,7 +275,6 @@ const AdminPanel = () => {
         data.append("imagen", formData.imagen);
       }
 
-      // DETERMINAR SI ES CREAR O EDITAR
       const url = isEditMode 
         ? `${API_URL}/productos/${editingProduct._id}`
         : `${API_URL}/productos`;
@@ -309,7 +289,6 @@ const AdminPanel = () => {
 
       alert(isEditMode ? "✅ Producto actualizado con éxito" : "✅ Producto agregado con éxito");
       
-      // Reset form
       setFormData({
         nombre: "",
         precio: "",
@@ -340,7 +319,6 @@ const AdminPanel = () => {
     }
   };
 
-  // --- Usuarios ---
   const getUsuarios = async () => {
     setWarn("");
     const isServerOnline = await checkServerHealth();
@@ -375,7 +353,6 @@ const AdminPanel = () => {
     }
   };
 
-  // --- Productos ---
   const getProductos = async () => {
     setWarn("");
     const isServerOnline = await checkServerHealth();
@@ -394,7 +371,6 @@ const AdminPanel = () => {
       setCategorias(data);
     } catch (error) {
       console.error("Error cargando categorías:", error);
-      // Fallback a categorías predeterminadas
       setCategorias([
         { value: 'alimento', label: 'Alimento' },
         { value: 'juguetes', label: 'Juguetes' },
@@ -427,7 +403,6 @@ const AdminPanel = () => {
     }
   };
 
-  // --- Citas ---
   const getCitas = async () => {
     setWarn("");
     const isServerOnline = await checkServerHealth();
@@ -448,7 +423,6 @@ const AdminPanel = () => {
     }
   };
 
-  // --- Utility Functions ---
   const formatearPrecio = (precio) => {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
@@ -463,7 +437,6 @@ const AdminPanel = () => {
     return new Date(fecha).toLocaleDateString('es-CO');
   };
 
-  // --- Effects ---
   useEffect(() => {
     checkServerHealth();
     getCategorias();
@@ -490,10 +463,9 @@ const AdminPanel = () => {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
-      {/* Sidebar Moderno */}
+      {/* Sidebar */}
       <aside className="w-80 bg-white shadow-xl border-r border-gray-200">
         <div className="p-8">
-          {/* Header del Admin */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-gradient-to-r from-lime-400 to-lime-500 rounded-2xl flex items-center justify-center">
@@ -505,7 +477,6 @@ const AdminPanel = () => {
               </div>
             </div>
 
-            {/* Status del servidor */}
             <div
               className={`px-4 py-3 rounded-2xl text-sm font-medium flex items-center gap-3 ${
                 serverStatus === "online"
@@ -525,7 +496,6 @@ const AdminPanel = () => {
             </div>
           </div>
 
-          {/* Navigation */}
           <nav className="space-y-2">
             {sidebarItems.map((item) => {
               const Icon = item.icon;
@@ -556,7 +526,6 @@ const AdminPanel = () => {
       {/* Contenido Principal */}
       <main className="flex-1 p-8 overflow-auto">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
               Panel de Administración
@@ -571,10 +540,9 @@ const AdminPanel = () => {
             </div>
           )}
 
-          {/* Formulario Productos - ACTUALIZADO PARA CREAR/EDITAR */}
+          {/* Formulario Productos */}
           {activeTab === "productos" && (
             <div>
-              {/* HEADER CON BOTÓN CANCELAR */}
               {isEditMode && (
                 <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-2xl">
                   <div className="flex justify-between items-center">
@@ -684,14 +652,14 @@ const AdminPanel = () => {
                           {isEditMode && !previewImage && editingProduct?.imagen && (
                             <div className="mt-4">
                               <p className="text-sm text-gray-600 mb-2">Imagen actual:</p>
+                              {/* 📸 ACTUALIZADO: Acceso directo desde /uploads/ */}
                               <img
-                                src={
-                                  editingProduct.imagen.startsWith("http")
-                                    ? editingProduct.imagen
-                                    : `${BASE_URL}${editingProduct.imagen}`
-                                }
+                                src={editingProduct.imagen}
                                 alt="Imagen actual"
                                 className="w-40 h-40 object-cover rounded-2xl shadow-lg"
+                                onError={(e) => {
+                                  e.currentTarget.src = 'https://via.placeholder.com/200?text=Sin+Imagen';
+                                }}
                               />
                             </div>
                           )}
@@ -840,7 +808,7 @@ const AdminPanel = () => {
             </div>
           )}
 
-          {/* Ver Productos - VISTA ACTUALIZADA CON BOTÓN EDITAR */}
+          {/* Ver Productos */}
           {activeTab === "verProductos" && (
             <div>
               <div className="flex justify-between items-center mb-8">
@@ -866,16 +834,13 @@ const AdminPanel = () => {
                       className="bg-white p-6 rounded-2xl shadow-lg flex flex-col border border-gray-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                     >
                       {p.imagen && (
+                        // 📸 ACTUALIZADO: Acceso directo desde /uploads/
                         <img
-                          src={
-                            p.imagen.startsWith("http")
-                              ? p.imagen
-                              : `${BASE_URL}${p.imagen}`
-                          }
+                          src={p.imagen}
                           alt={p.nombre}
                           className="w-full h-48 object-cover rounded-2xl mb-6"
                           onError={(e) => {
-                            e.target.style.display = "none";
+                            e.currentTarget.style.display = "none";
                           }}
                         />
                       )}
@@ -968,11 +933,10 @@ const AdminPanel = () => {
                         )}
                       </div>
                       
-                      {/* BOTONES DE ACCIÓN ACTUALIZADOS */}
+                      {/* Botones de acción */}
                       <div className="mt-auto space-y-3">
                         <p className="text-xs text-gray-400 text-center">ID: {p._id}</p>
                         
-                        {/* NUEVO BOTÓN EDITAR */}
                         <button
                           onClick={() => startEditProduct(p)}
                           className="w-full bg-blue-500 text-white px-4 py-3 rounded-xl hover:bg-blue-600 transition-colors font-medium flex items-center justify-center gap-2 shadow-md"
@@ -1182,15 +1146,14 @@ const AdminPanel = () => {
                           <p className="text-gray-600 text-lg">{m.especie} • {m.raza}</p>
                         </div>
                         {m.imagen && (
+                          // 📸 ACTUALIZADO: Acceso directo desde /uploads/
                           <img
-                            src={
-                              m.imagen.startsWith("http")
-                                ? m.imagen
-                                : `${BASE_URL}${m.imagen}`
-                            }
+                            src={m.imagen}
                             alt={m.nombre}
                             className="w-24 h-24 object-cover rounded-2xl shadow-lg"
-                            onError={(e) => (e.target.style.display = "none")}
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
                           />
                         )}
                       </div>
@@ -1329,4 +1292,3 @@ const AdminPanel = () => {
 };
 
 export default AdminPanel;
-                            
