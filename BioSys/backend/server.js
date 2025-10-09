@@ -136,11 +136,10 @@ try {
 // Reemplaza esta función en server.js
 const verificarConfiguracionEmail = (req, res, next) => {
   if (!transporter) {
-    console.warn('⚠️ Transporter no disponible, continuando sin email');
+    console.warn('⚠️ Transporter no disponible - Continuando sin verificación de email');
     req.emailDisabled = true; // Marcar que email está deshabilitado
     return next(); // ✅ PERMITIR CONTINUAR
   }
- 
   next();
 };
 
@@ -1481,14 +1480,8 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
   try {
     const { name, email, password, telefono, direccion, role } = req.body;
     
-    // AGREGAR LOG PARA DEBUG
-    console.log('📥 Datos recibidos en /register:', {
-      name,
-      email,
-      telefono,
-      direccion,
-      hasPassword: !!password
-    });
+    // LOG DETALLADO
+
     
     if (!name || !email || !password || !telefono || !direccion) {
       return res.status(400).json({ 
@@ -1497,8 +1490,35 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
       });
     }
     
-    // ... resto de validaciones ...
+    if (password.length < 6) {
+      return res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
+    }
 
+    if (!validarTelefono(telefono)) {
+      return res.status(400).json({ error: "El teléfono debe tener un formato válido (7-15 dígitos)" });
+    }
+
+    const validacionDireccion = validarDireccion(direccion);
+    if (!validacionDireccion.valido) {
+      return res.status(400).json({ error: validacionDireccion.mensaje });
+    }
+
+    const exists = await User.findOne({ email: email.toLowerCase() });
+    if (exists) {
+      if (exists.emailVerified) {
+        return res.status(400).json({ error: "El correo ya está registrado y verificado" });
+      } else {
+        await User.deleteOne({ _id: exists._id });
+        console.log('🗑️ Registro anterior no verificado eliminado');
+      }
+    }
+
+    const tokenVerificacion = generarTokenVerificacion();
+    const expiracionToken = new Date();
+    expiracionToken.setHours(expiracionToken.getHours() + 24);
+    const hashed = await bcrypt.hash(password, 10);
+    
+    // 🆕 AUTO-VERIFICAR SI EMAIL ESTÁ DESHABILITADO
     const nuevoUsuario = new User({ 
       name: name.trim(), 
       email: email.trim().toLowerCase(), 
@@ -1510,28 +1530,28 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
         estado: direccion.estado.trim(),
         pais: direccion.pais ? direccion.pais.trim() : 'Colombia'
       },
-      role,
-      emailVerificationToken: tokenVerificacion,
-      emailVerificationExpires: expiracionToken,
-      // 🆕 SI NO HAY EMAIL CONFIGURADO, ACTIVAR DIRECTAMENTE
-      emailVerified: req.emailDisabled ? true : false,
-      pendingActivation: req.emailDisabled ? false : true
+      role: role || 'user',
+      emailVerificationToken: req.emailDisabled ? undefined : tokenVerificacion,
+      emailVerificationExpires: req.emailDisabled ? undefined : expiracionToken,
+      emailVerified: req.emailDisabled ? true : false, // ✅ Auto-verificar
+      pendingActivation: req.emailDisabled ? false : true // ✅ Activar directamente
     });
 
     await nuevoUsuario.save();
+    console.log('✅ Usuario guardado en BD:', nuevoUsuario._id);
 
-    // 🆕 SI EMAIL ESTÁ DESHABILITADO, REGISTRAR SIN VERIFICACIÓN
+    // 🆕 SI EMAIL DESHABILITADO, RESPONDER INMEDIATAMENTE
     if (req.emailDisabled) {
-      console.log('✅ Usuario registrado sin verificación de email (modo desarrollo)');
+      console.log('✅ Registro SIN verificación de email');
       return res.status(201).json({ 
-        message: "Registro completado exitosamente (modo desarrollo sin email)",
+        message: "Registro completado exitosamente",
         requiereVerificacion: false,
         email: email,
         instrucciones: "Tu cuenta ha sido activada automáticamente. Puedes iniciar sesión ahora."
       });
     }
 
-    // Resto del código de envío de email...
+    // Enviar email de verificación
     const emailEnviado = await enviarEmailVerificacion(email, name, tokenVerificacion);
     
     if (emailEnviado.success) {
@@ -1551,14 +1571,22 @@ router.post("/register", verificarConfiguracionEmail, async (req, res) => {
     }
 
   } catch (error) {
-    console.error("❌ Error completo en registro:", error);
+    console.error("💥 === ERROR EN /register ===");
+    console.error("Nombre:", error.name);
+    console.error("Mensaje:", error.message);
+    console.error("Stack:", error.stack);
+    console.error("===============================");
+    
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(e => e.message);
-      res.status(400).json({ error: "Error de validación", detalles: errors });
+      return res.status(400).json({ error: "Error de validación", detalles: errors });
     } else if (error.code === 11000) {
-      res.status(400).json({ error: "El email ya está registrado" });
+      return res.status(400).json({ error: "El email ya está registrado" });
     } else {
-      res.status(500).json({ error: "Error en el servidor" });
+      return res.status(500).json({ 
+        error: "Error en el servidor",
+        mensaje: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   }
 });
